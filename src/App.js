@@ -82,7 +82,7 @@ function App() {
 
           {/* Subscription Page: Accessible to all users */}
           <Route path="/upgrade" element={<SubscriptionPage user={user} />} />
-          <Route path="/makecv" element={<BuildCvPage />} />
+          <Route path="/makecv" element={<BuildCvPage user={user} />} />
           <Route path="/t&c" element={<TermsAndConditions />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/success" element={<PaymentSuccessPage />} />

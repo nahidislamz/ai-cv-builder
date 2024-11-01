@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Container,
     Typography,
@@ -11,8 +11,82 @@ import {
     Step,
     StepLabel,
     useMediaQuery,
+    FormControl, InputLabel, Select, MenuItem,
+    Alert
 } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
+import TipsSlider from '../components/TipsSlider';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
+import IconButton from '@mui/material/IconButton';
+import DeleteIcon from '@mui/icons-material/Delete';
+import { Lightbulb } from '@mui/icons-material';
+import Groq from "groq-sdk";
+import { firestore } from '../firebase'; // Path to your firebase configuration
+import { doc, setDoc, getDoc } from "firebase/firestore";
+import { CircularProgress } from '@mui/material';
+
+const groq = new Groq({ apiKey: process.env.REACT_APP_GROQ_API_KEY, dangerouslyAllowBrowser: true });
+
+const getGroqChatCompletion = async (cvData) => {
+    // Extract relevant information from cvData
+    const { personalInfo, education, workExperience, skills, certifications, projects, languages, hobbies } = cvData;
+
+    // Format the resume content
+    const resume = `
+    ## Personal Information
+    - Name: ${personalInfo.name}
+    - Email: ${personalInfo.email}
+    - Phone: ${personalInfo.phone}
+
+    ## Education
+    ${education.map(edu => `- **${edu.degree}** from **${edu.school}** (Graduation Year: ${edu.graduationYear})`).join('\n')}
+
+    ## Work Experience
+    ${workExperience.map(job => `- **${job.position}** at **${job.company}** (${job.startDate} - ${job.endDate}): ${job.description}`).join('\n')}
+
+    ## Skills
+    ${skills.length > 0 ? skills.join(', ') : 'No skills listed.'}
+
+    ## Certifications
+    ${certifications.length > 0 ? certifications.join(', ') : 'No certifications listed.'}
+
+    ## Projects
+    ${projects.length > 0 ? projects.map(project => `- **${project.name}**: ${project.description} (Link: ${project.link || 'N/A'})`).join('\n') : 'No projects listed.'}
+
+    ## Languages
+    ${languages.length > 0 ? languages.map(lang => `- **${lang.language}**: Proficiency - ${lang.proficiency}`).join('\n') : 'No languages listed.'}
+
+    ## Hobbies
+    ${hobbies.length > 0 ? hobbies.join(', ') : 'No hobbies listed.'}
+
+    `;
+
+    // Generate a prompt for the AI model
+    const prompt = `I need help generating a profile summary based on my resume data. Here is my current resume data:${resume}
+    Please generate a concise and impactful profile summary that highlights my strengths, relevant skills, and experiences based on the information provided. 
+    The summary should be suitable for a professional context and tailored to showcase my qualifications effectively.`;
+
+    return groq.chat.completions.create({
+        model: "llama-3.1-70b-versatile",
+        messages: [
+            {
+                role: "user",
+                content: prompt
+            }
+        ],
+        temperature: 1,
+        max_tokens: 2024,
+        top_p: 1,
+        stream: false,
+        stop: null,
+    });
+};
+// Define custom toolbar options
+const toolbarOptions = [
+    ['bold', 'italic'],       // Bold and Italic options
+    [{ 'list': 'bullet' }],   // Bullet list option
+];
 
 const theme = createTheme({
     palette: {
@@ -28,52 +102,81 @@ const theme = createTheme({
     },
 });
 
-const steps = ['Personal', 'Education', 'Experience', 'Skills', 'Additional Info'];
+const steps = ['Personal', 'Education', 'Experience', 'Skills', 'Additional Info', 'Profile Summary'];
 
-function BuildCvPage() {
+function BuildCvPage({ user }) {
     const [activeStep, setActiveStep] = useState(0);
     const [cvData, setCvData] = useState({
         personalInfo: { name: '', email: '', phone: '' },
-        education: [{ school: '', degree: '', graduationYear: '' }],
+        education: [{ school: '', degree: '', graduationYear: '', subjects: '' }],
         workExperience: [{ company: '', position: '', startDate: '', endDate: '', description: '' }],
-        skills: [''],
-        certifications: [''],
-        projects: [{ name: '', description: '', link: '' }],
+        skills: [],
+        certifications: [],
+        projects: [],
         languages: [{ language: '', proficiency: '' }],
-        hobbies: [''],
-        references: { available: true }
+        hobbies: [],
+        references: { available: true },
+        profileSummary: '',
     });
     const [isCvGenerated, setIsCvGenerated] = useState(false);
     const [validationErrors, setValidationErrors] = useState({});
-
-
+    const [profileSummary, setProfileSummary] = useState();
+    const [loading, setLoading] = useState(false);
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const [resumeExists, setResumeExist] = useState(false);
 
-    // Handle next step with validation
-    const handleNext = () => {
-        const errors = validateStep(activeStep);
-    
-        // Check if there are any errors before proceeding
-        if (Object.keys(errors).length === 0) {
-            setValidationErrors({});
-            setActiveStep((prevActiveStep) => prevActiveStep + 1);
-        } else {
-            setValidationErrors(errors);
+
+    const saveCvData = async (userId) => {
+        try {
+            const cvRef = doc(firestore, "users", userId); // Adjust to your collection structure
+            await setDoc(cvRef, { resume: cvData }, { merge: true });
+            console.log("CV data saved successfully!");
+        } catch (error) {
+            console.error("Error saving CV data:", error);
         }
     };
-    
+    useEffect(() => {
+        const fetchCvData = async () => {
+            try {
+                // Reference to the user's document in Firestore
+                const userRef = doc(firestore, "users", user.uid);
+
+                // Get the document data
+                const userDoc = await getDoc(userRef);
+
+                if (userDoc.exists()) {
+                    const data = userDoc.data();
+
+
+                    // Check if the 'resume' field exists and set cvData accordingly
+                    if (data.resume) {
+                        setCvData(data.resume); // Set cvData with the fetched resume data
+                        setResumeExist(true)
+                    } else {
+                        console.log("No CV data found for user.");
+                    }
+                } else {
+                    console.log("No user found with this ID.");
+                }
+            } catch (error) {
+                console.error("Error fetching CV data:", error);
+            }
+        };
+
+        fetchCvData();
+    }, [user.uid]);
 
     // Validation function for each step
     const validateStep = (step) => {
         const errors = {};
-    
+
         switch (step) {
             case 0: // Personal Info
                 if (!cvData.personalInfo.name) errors.name = "Full Name is required.";
                 if (!cvData.personalInfo.email) errors.email = "Email is required.";
                 if (!cvData.personalInfo.phone) errors.phone = "Phone number is required.";
                 break;
-    
+
             case 1: // Education
                 errors.education = cvData.education.map((edu) => {
                     const entryErrors = {};
@@ -82,12 +185,12 @@ function BuildCvPage() {
                     if (!edu.graduationYear) entryErrors.graduationYear = "Graduation Year is required.";
                     return entryErrors;
                 });
-    
+
                 // Filter out any empty error objects
                 errors.education = errors.education.filter((e) => Object.keys(e).length > 0);
                 if (errors.education.length === 0) delete errors.education; // No errors if array is empty
                 break;
-    
+
             case 2: // Work Experience
                 errors.workExperience = cvData.workExperience.map((exp) => {
                     const entryErrors = {};
@@ -96,22 +199,18 @@ function BuildCvPage() {
                     if (!exp.startDate) entryErrors.startDate = "Start Date is required.";
                     return entryErrors;
                 });
-    
+
                 // Filter out any empty error objects
                 errors.workExperience = errors.workExperience.filter((e) => Object.keys(e).length > 0);
                 if (errors.workExperience.length === 0) delete errors.workExperience; // No errors if array is empty
                 break;
-    
+
             default:
                 break;
         }
-    
+
         return errors;
     };
-    
-    
-    
-
 
     const handleBack = () => {
         setActiveStep((prevActiveStep) => prevActiveStep - 1);
@@ -133,7 +232,7 @@ function BuildCvPage() {
                 return { ...prevData, [section]: value };
             }
         });
-        
+
         setValidationErrors((prevErrors) => {
             const newErrors = { ...prevErrors };
             if (newErrors[section]?.[index]?.[field]) {
@@ -160,9 +259,75 @@ function BuildCvPage() {
         }));
     };
 
-    const handleGenerateCv = () => {
-        setIsCvGenerated(true);
+    // Handle next step with validation
+    const handleNext = async () => {
+        const errors = validateStep(activeStep);
+        console.log(activeStep);
+
+        if (activeStep === 4) { // Profile Summary step
+
+            await handleGenerateSummary();
+        }
+
+        // Check if there are any errors before proceeding
+        if (Object.keys(errors).length === 0) {
+            setValidationErrors({});
+            setActiveStep((prevActiveStep) => prevActiveStep + 1);
+        } else {
+            setValidationErrors(errors);
+        }
     };
+
+    const handleGenerateSummary = async () => {
+        try {
+            setLoading(true);
+            // Only trigger AI generation if profileSummary is empty
+            if (!cvData.profileSummary.trim()) {
+                const summaryResponse = await getGroqChatCompletion(cvData); // Replace with your actual function for AI completion
+                console.log("AI Summary Response:", summaryResponse);
+
+                // Check if response has valid content
+                if (summaryResponse?.choices?.[0]?.message?.content?.trim()) {
+                    const generatedSummary = summaryResponse.choices[0].message.content.trim();
+                    const summaryMatch = generatedSummary.match(/"([^"]+)"/);
+                    const summary = summaryMatch ? summaryMatch[1] : 'Summary not found.';
+                    setCvData((prevData) => ({
+                        ...prevData,
+                        profileSummary: summary
+                    }));
+                } else {
+                    console.warn("AI response was empty. Using fallback summary.");
+                    setCvData((prevData) => ({
+                        ...prevData,
+                        profileSummary: "Professional with experience in various fields."
+                    }));
+                }
+                
+            } else {
+                console.log("Profile Summary already exists, skipping AI generation.");
+            }
+        } catch (error) {
+            console.error("Error generating CV:", error);
+        } finally {
+            setLoading(false); // Ensure loading stops in all cases
+        }
+    };
+    const handleGenerateCv = async () => {
+        try {
+            await saveCvData(user.uid);
+            setIsCvGenerated(true)
+        } catch (error) {
+            console.error("Error generating CV:", error);
+        }
+    };
+    
+
+
+
+
+
+
+
 
     const renderStepContent = (step) => {
         switch (step) {
@@ -209,6 +374,7 @@ function BuildCvPage() {
                             </Grid>
                         </Grid>
                     </Box>
+
                 );
             case 1:
                 return (
@@ -244,11 +410,22 @@ function BuildCvPage() {
                                     <TextField
                                         required
                                         fullWidth
+                                        type="number"
                                         label="Graduation Year"
                                         value={edu.graduationYear}
                                         onChange={(e) => handleInputChange('education', 'graduationYear', e.target.value, index)}
                                         error={!!validationErrors.education?.[index]?.graduationYear}
                                         helperText={validationErrors.education?.[index]?.graduationYear}
+                                    />
+
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <ReactQuill
+                                        theme='snow'
+                                        value={edu.subjects} // Holds subjects
+                                        onChange={(value) => handleInputChange('education', 'subjects', value, index)} // Use the value directly
+                                        placeholder="Add your subjects here"
+                                        modules={{ toolbar: toolbarOptions }} // Assuming toolbarOptions are defined
                                     />
                                 </Grid>
                                 {index > 0 && (
@@ -298,30 +475,39 @@ function BuildCvPage() {
                                 <Grid item xs={12} sm={6}>
                                     <TextField
                                         required
+                                        type="date"
                                         fullWidth
                                         label="Start Date"
                                         value={exp.startDate}
                                         onChange={(e) => handleInputChange('workExperience', 'startDate', e.target.value, index)}
                                         error={!!validationErrors.workExperience?.[index]?.startDate}
                                         helperText={validationErrors.workExperience?.[index]?.startDate}
+                                        InputLabelProps={{
+                                            shrink: true, // Ensures the label does not overlap
+                                        }}
+                                        placeholder="DD/MM/YYYY" // Placeholder to indicate the format
                                     />
                                 </Grid>
                                 <Grid item xs={12} sm={6}>
                                     <TextField
+                                        type="date"
                                         fullWidth
                                         label="End Date"
                                         value={exp.endDate}
                                         onChange={(e) => handleInputChange('workExperience', 'endDate', e.target.value, index)}
+                                        InputLabelProps={{
+                                            shrink: true, // Ensures the label does not overlap
+                                        }}
+                                        placeholder="DD/MM/YYYY" // Placeholder to indicate the format
                                     />
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField
-                                        fullWidth
-                                        multiline
-                                        rows={4}
-                                        label="Description"
+                                    <ReactQuill
+                                        theme="snow"
                                         value={exp.description}
-                                        onChange={(e) => handleInputChange('workExperience', 'description', e.target.value, index)}
+                                        onChange={(value) => handleInputChange('workExperience', 'description', value, index)}
+                                        placeholder="Describe your work experience"
+                                        modules={{ toolbar: toolbarOptions }} // Apply custom toolbar
                                     />
                                 </Grid>
                                 {index > 0 && (
@@ -341,12 +527,15 @@ function BuildCvPage() {
             case 3:
                 return (
                     <Box>
+                        <Alert severity="success" icon={<Lightbulb fontSize="inherit" />} sx={{ mb: 2 }}>
+                            Please add at least 3 skills.
+                        </Alert>
                         <Typography variant="h6" gutterBottom>
                             Skills
                         </Typography>
                         {cvData.skills.map((skill, index) => (
                             <Grid container spacing={2} key={index} sx={{ mb: 2 }}>
-                                <Grid item xs={12}>
+                                <Grid item xs={11}> {/* Adjusting the size for the skill input */}
                                     <TextField
                                         required
                                         fullWidth
@@ -355,16 +544,20 @@ function BuildCvPage() {
                                         onChange={(e) => handleInputChange('skills', null, e.target.value, index)}
                                     />
                                 </Grid>
-                                {index > 0 && (
-                                    <Grid item xs={12}>
-                                        <Button onClick={() => removeListItem('skills', index)} color="secondary">
-                                            Remove Skill
-                                        </Button>
+                                {index > 0 && ( // Show the remove button only if it's not the first skill
+                                    <Grid item xs={1}> {/* Adjust the size to fit the button next to the text field */}
+                                        <IconButton
+                                            onClick={() => removeListItem('skills', index)}
+                                            sx={{ color: 'red' }}
+                                            aria-label="remove skill" // Accessibility
+                                        >
+                                            <DeleteIcon /> {/* Use the Delete icon */}
+                                        </IconButton>
                                     </Grid>
                                 )}
                             </Grid>
                         ))}
-                        <Button onClick={() => addListItem('skills')} variant="outlined" fullWidth>
+                        <Button onClick={() => addListItem('skills')} variant="outlined" fullWidth size='sm'>
                             Add Skill
                         </Button>
                     </Box>
@@ -375,6 +568,9 @@ function BuildCvPage() {
                         <Typography variant="h6" gutterBottom>
                             Certifications
                         </Typography>
+                        <Alert severity="info" sx={{ mb: 2 }}>
+                            Please leave blank if you do not want to add certifications
+                        </Alert>
                         {cvData.certifications.map((cert, index) => (
                             <Grid container spacing={2} key={index} sx={{ mb: 2 }}>
                                 <Grid item xs={12}>
@@ -401,6 +597,9 @@ function BuildCvPage() {
                         <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>
                             Projects
                         </Typography>
+                        <Alert severity="info" sx={{ mb: 2 }}>
+                            Please leave blank if you do not want to add projects
+                        </Alert>
                         {cvData.projects.map((project, index) => (
                             <Grid container spacing={2} key={index} sx={{ mb: 2 }}>
                                 <Grid item xs={12}>
@@ -456,12 +655,19 @@ function BuildCvPage() {
                                     />
                                 </Grid>
                                 <Grid item xs={12} sm={6}>
-                                    <TextField
-                                        fullWidth
-                                        label="Proficiency"
-                                        value={lang.proficiency}
-                                        onChange={(e) => handleInputChange('languages', 'proficiency', e.target.value, index)}
-                                    />
+                                    <FormControl fullWidth>
+                                        <InputLabel>Proficiency</InputLabel>
+                                        <Select
+                                            value={lang.proficiency}
+                                            label="Proficiency"
+                                            onChange={(e) => handleInputChange('languages', 'proficiency', e.target.value, index)}
+                                        >
+                                            <MenuItem value="Beginner">Beginner</MenuItem>
+                                            <MenuItem value="Intermediate">Intermediate</MenuItem>
+                                            <MenuItem value="Advanced">Advanced</MenuItem>
+                                            <MenuItem value="Native">Native</MenuItem>
+                                        </Select>
+                                    </FormControl>
                                 </Grid>
                                 {index > 0 && (
                                     <Grid item xs={12}>
@@ -486,7 +692,7 @@ function BuildCvPage() {
                                         fullWidth
                                         label={`Hobby/Interest ${index + 1}`}
                                         value={hobby}
-                                        onChange={(e) => handleInputChange('hobbies', index, e.target.value)}
+                                        onChange={(e) => handleInputChange('hobbies', null, e.target.value, index)}
                                     />
                                 </Grid>
                                 {index > 0 && (
@@ -519,13 +725,36 @@ function BuildCvPage() {
                         </Grid>
                     </Box>
                 );
+            case 5:
+                return (
+                    <Box>
+                        <Typography variant="h6" gutterBottom>
+                            Review Your Profile Summary
+                        </Typography>
+                        {loading ? (
+                            <Typography>Generating summary, please wait...</Typography>
+                        ) : (
+                            <TextField
+                                fullWidth
+                                multiline
+                                rows={4}
+                                label="Profile Summary"
+                                value={cvData.profileSummary}
+                                onChange={(e) => setCvData((prevData) => ({
+                                    ...prevData,
+                                    profileSummary: e.target.value
+                                }))}
+                            />
+                        )}
+                    </Box>
+                )
             default:
                 return 'Unknown step';
         }
     };
 
     const renderCv = () => (
-        <Paper elevation={3} sx={{ p: 4, mt: 4 }}>
+        <Paper elevation={0} sx={{ p: 4, mt: 4 }}>
             <Typography variant="h4" gutterBottom>
                 {cvData.personalInfo.name}
             </Typography>
@@ -536,14 +765,29 @@ function BuildCvPage() {
                 Phone: {cvData.personalInfo.phone}
             </Typography>
 
+            {cvData.profileSummary && (
+                <Box>
+                    <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+                        Profile Summary
+                    </Typography>
+                    <Typography variant='body1' sx={{ textAlign: 'justify' }}>
+                        {cvData.profileSummary}
+                    </Typography>
+                </Box>
+            )}
+
             <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
                 Education
             </Typography>
             {cvData.education.map((edu, index) => (
                 <Box key={index}>
-                    <Typography variant="body1">
-                        {edu.degree} from {edu.school} ({edu.graduationYear})
+                    <Typography variant="h5" component="span" sx={{ mr: 1 }}>
+                        {edu.degree}
                     </Typography>
+                    <Typography variant="body1" component="span">
+                        from {edu.school} ({edu.graduationYear})
+                    </Typography>
+                    <Typography variant="body2" dangerouslySetInnerHTML={{ __html: edu.subjects }} />
                 </Box>
             ))}
 
@@ -552,10 +796,32 @@ function BuildCvPage() {
             </Typography>
             {cvData.workExperience?.map((exp, index) => (
                 <Box key={index}>
-                    <Typography variant="body1">
-                        {exp.position} at {exp.company} ({exp.startDate} - {exp.endDate || 'Present'})
+                    <Typography variant="h5" component="span" sx={{ mr: 1 }}>
+                        {exp.position}
                     </Typography>
-                    <Typography variant="body2">{exp.description}</Typography>
+                    <Typography variant="body1" component="span" sx={{ mr: 1 }}>
+                        at {exp.company}
+                    </Typography>
+                    <Typography variant="body2" component="span" color="textSecondary">
+                        (
+                        {new Date(exp.startDate).toLocaleDateString('en-GB', {
+                            month: 'short',
+                            year: 'numeric'
+                        })}
+                        -
+                        {exp.endDate
+                            ? new Date(exp.endDate).toLocaleDateString('en-GB', {
+                                month: 'short',
+                                year: 'numeric'
+                            })
+                            : 'Present'}
+                        )
+                    </Typography>
+
+                    <Typography
+                        variant="body2"
+                        dangerouslySetInnerHTML={{ __html: exp.description }} // Render HTML safely
+                    />
                 </Box>
             ))}
 
@@ -636,7 +902,9 @@ function BuildCvPage() {
 
     return (
         <ThemeProvider theme={theme}>
-            <Container maxWidth="md">
+            <Container maxWidth="md" sx={{ mb: 4 }}>
+                {loading && <CircularProgress />}
+                <TipsSlider />
                 <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 }, mt: 4 }}>
                     <Typography variant="h4" align="center" gutterBottom>
                         Build Your CV
@@ -648,18 +916,21 @@ function BuildCvPage() {
                             </Step>
                         ))}
                     </Stepper>
-                    {isCvGenerated ? renderCv() : renderStepContent(activeStep)}
+                    {!loading && isCvGenerated ? renderCv() : renderStepContent(activeStep)}
                     {!isCvGenerated && (
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
                             <Button onClick={handleBack} sx={{ mr: 1 }} disabled={activeStep === 0}>
                                 Back
                             </Button>
                             <Button
+                                disabled={loading}
                                 variant="contained"
                                 color="primary"
                                 onClick={activeStep === steps.length - 1 ? handleGenerateCv : handleNext}
                             >
-                                {activeStep === steps.length - 1 ? 'Generate CV' : 'Next'}
+                                {activeStep === steps.length - 1
+                                    ? (resumeExists ? 'Update CV' : 'Generate CV')
+                                    : 'Next'}
                             </Button>
                         </Box>
                     )}
