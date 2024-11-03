@@ -6,7 +6,7 @@ import AppBar from "../src/components/Appbar";
 import LoginPage from "./containers/LoginPage";
 import HomePage from "./containers/HomePage";
 import SubscriptionPage from "./containers/SubscriptionPage";
-import { Box, CssBaseline, ThemeProvider, createTheme, CircularProgress } from "@mui/material";
+import { Box, CssBaseline, ThemeProvider, createTheme } from "@mui/material";
 import TermsAndConditions from "./containers/TermsPage";
 import PrivacyPolicy from "./containers/PrivacyPage";
 import PaymentSuccessPage from "./containers/PaymentSuccessPage";
@@ -85,8 +85,9 @@ function App() {
           <Route path="/makecv" element={<BuildCvPage user={user} />} />
           <Route path="/t&c" element={<TermsAndConditions />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-          <Route path="/success" element={<PaymentSuccessPage />} />
+          <Route path="/success" element={<PaymentSuccessPage user={user} />} />
         </Routes>
+    
       </Box>
     </ThemeProvider>
   );

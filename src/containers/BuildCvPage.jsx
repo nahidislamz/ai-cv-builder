@@ -120,7 +120,6 @@ function BuildCvPage({ user }) {
     });
     const [isCvGenerated, setIsCvGenerated] = useState(false);
     const [validationErrors, setValidationErrors] = useState({});
-    const [profileSummary, setProfileSummary] = useState();
     const [loading, setLoading] = useState(false);
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const [resumeExists, setResumeExist] = useState(false);
@@ -169,28 +168,28 @@ function BuildCvPage({ user }) {
     // Validation function for each step
     const validateStep = (step) => {
         const errors = {};
-
+    
         switch (step) {
             case 0: // Personal Info
                 if (!cvData.personalInfo.name) errors.name = "Full Name is required.";
                 if (!cvData.personalInfo.email) errors.email = "Email is required.";
                 if (!cvData.personalInfo.phone) errors.phone = "Phone number is required.";
                 break;
-
+    
             case 1: // Education
-                errors.education = cvData.education.map((edu) => {
+                errors.education = cvData.education.map((edu, index) => {
                     const entryErrors = {};
                     if (!edu.school) entryErrors.school = "School/University is required.";
                     if (!edu.degree) entryErrors.degree = "Degree is required.";
                     if (!edu.graduationYear) entryErrors.graduationYear = "Graduation Year is required.";
                     return entryErrors;
                 });
-
-                // Filter out any empty error objects
+    
+                // Only keep entries that have at least one error
                 errors.education = errors.education.filter((e) => Object.keys(e).length > 0);
-                if (errors.education.length === 0) delete errors.education; // No errors if array is empty
+                if (errors.education.length === 0) delete errors.education;
                 break;
-
+    
             case 2: // Work Experience
                 errors.workExperience = cvData.workExperience.map((exp) => {
                     const entryErrors = {};
@@ -199,18 +198,19 @@ function BuildCvPage({ user }) {
                     if (!exp.startDate) entryErrors.startDate = "Start Date is required.";
                     return entryErrors;
                 });
-
+    
                 // Filter out any empty error objects
                 errors.workExperience = errors.workExperience.filter((e) => Object.keys(e).length > 0);
-                if (errors.workExperience.length === 0) delete errors.workExperience; // No errors if array is empty
+                if (errors.workExperience.length === 0) delete errors.workExperience;
                 break;
-
+    
             default:
                 break;
         }
-
+    
         return errors;
     };
+    
 
     const handleBack = () => {
         setActiveStep((prevActiveStep) => prevActiveStep - 1);
@@ -245,12 +245,25 @@ function BuildCvPage({ user }) {
     const addListItem = (section) => {
         setCvData((prevData) => ({
             ...prevData,
-            [section]: [...prevData[section],
-            section === 'projects' ? { name: '', description: '', link: '' } :
-                section === 'languages' ? { language: '', proficiency: '' } :
-                    '']
+            [section]: [
+                ...prevData[section],
+                section === 'projects'
+                    ? { name: '', description: '', link: '' }
+                    : section === 'languages'
+                    ? { language: '', proficiency: '' }
+                    : section === 'education'
+                    ? { school: '', degree: '', graduationYear: '', subjects: '' } // Initialize education fields
+                    : {}
+            ]
         }));
+        if (section === 'education') {
+            setValidationErrors((prevErrors) => ({
+                ...prevErrors,
+                education: [...(prevErrors.education || []), { school: '', degree: '', graduationYear: '' }]
+            }));
+        }
     };
+    
 
     const removeListItem = (section, index) => {
         setCvData((prevData) => ({
@@ -262,21 +275,21 @@ function BuildCvPage({ user }) {
     // Handle next step with validation
     const handleNext = async () => {
         const errors = validateStep(activeStep);
-        console.log(activeStep);
-
-        if (activeStep === 4) { // Profile Summary step
-
-            await handleGenerateSummary();
-        }
-
-        // Check if there are any errors before proceeding
+    
+        // If no errors, clear validationErrors and move to the next step
         if (Object.keys(errors).length === 0) {
             setValidationErrors({});
             setActiveStep((prevActiveStep) => prevActiveStep + 1);
+    
+            if (activeStep === 4) { // Profile Summary step
+                await handleGenerateSummary();
+            }
         } else {
+            // If there are errors, update validationErrors
             setValidationErrors(errors);
         }
     };
+    
 
     const handleGenerateSummary = async () => {
         try {
@@ -312,6 +325,37 @@ function BuildCvPage({ user }) {
             setLoading(false); // Ensure loading stops in all cases
         }
     };
+
+    const handleRegenerateSummary = async () => {
+        try {
+            setLoading(true);
+            // Only trigger AI generation if profileSummary is empty
+            const summaryResponse = await getGroqChatCompletion(cvData); // Replace with your actual function for AI completion
+            console.log("AI Summary Response:", summaryResponse);
+            // Check if response has valid content
+            if (summaryResponse?.choices?.[0]?.message?.content?.trim()) {
+                const generatedSummary = summaryResponse.choices[0].message.content.trim();
+                const summaryMatch = generatedSummary.match(/"([^"]+)"/);
+                const summary = summaryMatch ? summaryMatch[1] : 'Summary not found.';
+                setCvData((prevData) => ({
+                    ...prevData,
+                    profileSummary: summary
+                }));
+            } else {
+                console.warn("AI response was empty. Using fallback summary.");
+                setCvData((prevData) => ({
+                    ...prevData,
+                    profileSummary: "Professional with experience in various fields."
+                }));
+            }
+
+        } catch (error) {
+            console.error("Error generating CV:", error);
+        } finally {
+            setLoading(false); // Ensure loading stops in all cases
+        }
+    };
+
     const handleGenerateCv = async () => {
         try {
             await saveCvData(user.uid);
@@ -732,12 +776,24 @@ function BuildCvPage({ user }) {
                             Review Your Profile Summary
                         </Typography>
                         {loading ? (
-                            <Typography>Generating summary, please wait...</Typography>
+                                <Box
+                                    sx={{
+                                        display: 'flex',
+                                        justifyContent: 'center', // Center horizontally
+                                        alignItems: 'center',     // Center vertically
+                                        height: '100%',           // Full height of the container
+                                        mt: 2                      // Optional margin for spacing
+                                    }}
+                                >
+                                    <CircularProgress/>
+                                    <Typography>Generating summary, please wait...</Typography>
+                                </Box>
                         ) : (
                             <TextField
+                                sx={{mt:2}}
                                 fullWidth
                                 multiline
-                                rows={4}
+                                rows={10}
                                 label="Profile Summary"
                                 value={cvData.profileSummary}
                                 onChange={(e) => setCvData((prevData) => ({
@@ -746,6 +802,15 @@ function BuildCvPage({ user }) {
                                 }))}
                             />
                         )}
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            sx={{ mt: 2 }}
+                            onClick={handleRegenerateSummary} // Trigger the regenerate function
+                            disabled={loading} // Disable button if loading
+                        >
+                            Regenerate Summary
+                        </Button>
                     </Box>
                 )
             default:
@@ -903,7 +968,6 @@ function BuildCvPage({ user }) {
     return (
         <ThemeProvider theme={theme}>
             <Container maxWidth="md" sx={{ mb: 4 }}>
-                {loading && <CircularProgress />}
                 <TipsSlider />
                 <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 }, mt: 4 }}>
                     <Typography variant="h4" align="center" gutterBottom>

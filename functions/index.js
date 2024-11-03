@@ -34,6 +34,8 @@ app.use(cors({
 // Use bodyParser.json for regular endpoints
 
 
+
+
 const createCustomer = async (email) => {
   try {
     const customer = await stripe.customers.create({
@@ -45,6 +47,26 @@ const createCustomer = async (email) => {
     throw error; // Re-throw the error to handle it in the main function
   }
 };
+
+app.get('/invoice/:invoiceId', async (req, res) => {
+  try {
+    const invoiceId = req.params.invoiceId;
+    const invoice = await stripe.invoices.retrieve(invoiceId);
+
+    // Check if the invoice has a downloadable PDF
+    if (invoice && invoice.invoice_pdf) {
+      // If the invoice can be downloaded, send a response to indicate that
+      return res.json({ download: true, pdfUrl: invoice.invoice_pdf });
+    } else {
+      // If the invoice cannot be downloaded, return the invoice details
+      return res.json({ download: false, invoice });
+    }
+  } catch (error) {
+    console.error("Error retrieving invoice:", error);
+    res.status(500).send('Error retrieving invoice');
+  }
+});
+
 
 app.post('/get-customer-id', async (req, res) => {
   const { email } = req.body; // Identify the customer, usually by email or user ID.
@@ -86,13 +108,12 @@ app.post("/create-checkout-session", async (req, res) => {
 
   try {
     // Check if the customer exists in Stripe
-    if (!customerId) {
-      console.log("No customerId provided. Creating a new customer.");
-      customerId = await createCustomer(email);
-    } else {
       try {
         // Try retrieving the existing customer
-        await stripe.customers.retrieve(customerId);
+        if (customerId) {
+          await stripe.customers.retrieve(customerId);
+          console.log(`Customer ${customerId} found.`);
+        }
       } catch (err) {
         if (err.code === 'resource_missing') {
           console.log(`Customer not found. Creating a new customer with email: ${email}`);
@@ -101,7 +122,7 @@ app.post("/create-checkout-session", async (req, res) => {
           throw err; // Re-throw if it's another type of error
         }
       }
-    }
+
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -126,6 +147,57 @@ app.post("/create-checkout-session", async (req, res) => {
   } catch (error) {
     console.error("Error creating checkout session:", error);
     res.status(500).json({ error: "Failed to create checkout session", details: error.message });
+  }
+});
+
+app.post('/switch-subscription', async (req, res) => {
+  const { userid, priceId ,planName} = req.body;
+
+  if (!userid || !priceId) {
+    return res.status(400).json({ error: 'Missing userid or priceId' });
+  }
+  try {
+    // Get the user's Firestore document to find the current subscription ID
+    const userRef = db.collection('users').doc(userid);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { subscriptionId } = userDoc.data();
+
+    if (!subscriptionId) {
+      return res.status(400).json({ error: 'User does not have an active subscription' });
+    }
+
+    // Retrieve the current subscription in Stripe
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+    // Update the subscription with the new price ID
+    const updatedSubscription = await stripe.subscriptions.update(subscriptionId, {
+      items: [{
+        id: subscription.items.data[0].id,
+        price: priceId, // New price ID for the plan
+      }],
+      proration_behavior: 'create_prorations', // Ensures that Stripe prorates the charges
+    });
+
+    // Update Firestore with the new plan details
+    await userRef.set(
+      {
+        plan: planName,
+        status: "active", // Keep status as active
+        subscriptionEndDate: new Date(updatedSubscription.current_period_end * 1000).toISOString(),
+      },
+      { merge: true }
+    );
+
+    console.log(`Subscription ${subscriptionId} updated to new plan ${priceId} for user ${userid}`);
+    res.status(200).json({ message: 'Subscription updated successfully' });
+  } catch (error) {
+    console.error('Error switching subscription:', error);
+    res.status(500).json({ error: 'Failed to switch subscription', details: error.message });
   }
 });
 
@@ -155,6 +227,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
       const email = session.customer_email; // Customer's email from the session
       const firebaseUid = session.metadata.firebaseUid;
       const planName = session.metadata.planName;
+      const invoiceId = session.invoice;
       
       console.log(`Subscription ${subscriptionId} for customer ${customerId} completed for email ${email}.`);
       const userRef = db.collection("users").doc(firebaseUid);
@@ -181,7 +254,8 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
             plan: planName,                    // Plan name (e.g., Weekly, Monthly, Yearly)
             status: "active",  // Mark the user's subscription as active
             subscriptionStartDate: new Date(session.created * 1000),  // Start date of the subscription
-            subscriptionEndDate: subscriptionEndDate,      // End date of the subscription
+            subscriptionEndDate: subscriptionEndDate, 
+            invoiceId: invoiceId,     
           },
           { merge: true }  // Merge the data to avoid overwriting other user details
         );
@@ -215,7 +289,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
 });
 
 app.post('/cancel-subscription', async (req, res) => {
-  const { subscriptionId, firebaseUid } = req.body;
+  const { subscriptionId, firebaseUid , planName} = req.body;
 
   if (!subscriptionId || !firebaseUid) {
     return res.status(400).json({ error: 'Missing subscriptionId or firebaseUid' });

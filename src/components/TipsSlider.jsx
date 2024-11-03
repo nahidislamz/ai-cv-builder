@@ -2,12 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
-  IconButton,
   Alert,
   AlertTitle,
   Container,
-  useTheme,
-  useMediaQuery,
 } from '@mui/material';
 import {
   Lightbulb,
@@ -39,16 +36,12 @@ const tips = [
 export default function TipsSlider() {
   const [currentTip, setCurrentTip] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
 
   const goToNextTip = useCallback(() => {
     setCurrentTip((prev) => (prev + 1) % tips.length);
   }, []);
 
-  const goToPrevTip = useCallback(() => {
-    setCurrentTip((prev) => (prev - 1 + tips.length) % tips.length);
-  }, []);
 
   useEffect(() => {
     let timer;
@@ -58,9 +51,6 @@ export default function TipsSlider() {
     return () => clearInterval(timer);
   }, [isPlaying, goToNextTip]);
 
-  const togglePlayPause = () => {
-    setIsPlaying((prev) => !prev);
-  };
 
   return (
     <Container>

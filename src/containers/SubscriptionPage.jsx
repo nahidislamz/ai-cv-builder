@@ -10,6 +10,12 @@ import {
   createTheme, ThemeProvider,
   Container,
   Grid,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  CircularProgress,
 } from '@mui/material';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { doc, getDoc } from "firebase/firestore";
@@ -82,9 +88,10 @@ const plans = [
   },
 ];
 // Update the component to accept props
-function PricingCard({ plan, email, userid }) {
+function PricingCard({ plan, email, userid, currentPlan }) {
   const [loading, setLoading] = useState(false);
   const [customerId, setCustomerId] = useState(null);
+  const [switchPlan, setSwitchPlan] = useState(false);
   // Function to fetch customer ID
   const getCustomerId = async (email) => {
     try {
@@ -112,15 +119,21 @@ function PricingCard({ plan, email, userid }) {
   // Fetch customer ID when component mounts
   useEffect(() => {
     getCustomerId(email);
-  }, [email]);
+
+    if (currentPlan) {
+      setSwitchPlan(true)
+      console.log(currentPlan + "from pricing")
+
+    }
+  }, [email, currentPlan]);
 
   // Call the function with the user's email
 
   const handleSubscribe = async () => {
     setLoading(true); // Set loading state to true
-
+    const endpoint = switchPlan ? '/switch-subscription' : '/create-checkout-session';
     try {
-      const response = await fetch(process.env.REACT_APP_BACKEND_URL + `/create-checkout-session`, {
+      const response = await fetch(process.env.REACT_APP_BACKEND_URL + endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -141,7 +154,7 @@ function PricingCard({ plan, email, userid }) {
       if (session.url) {
         window.location.href = session.url; // Redirect to the Stripe checkout URL
       } else {
-        console.error("No URL returned from server");
+        window.href('/upgrade');
       }
     } catch (error) {
       console.error("Error creating checkout session:", error);
@@ -193,8 +206,13 @@ function PricingCard({ plan, email, userid }) {
           onClick={handleSubscribe}
           disabled={loading} // Disable button while loading
         >
-          {loading ? 'Processing...' : plan.buttonText}
+          {loading
+            ? 'Processing...'
+            : switchPlan
+              ? 'Switch'
+              : plan.buttonText}
         </Button>
+
       </CardActions>
     </Card>
   );
@@ -202,27 +220,13 @@ function PricingCard({ plan, email, userid }) {
 
 function SubscriptionPlans({ user }) {
   const [remainingDays, setRemainingDays] = useState();
-  const [currentPlan, setCurrentPlan] = useState();
+  const [currentPlan, setCurrentPlan] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [openDialog, setOpenDialog] = useState(false); // State for dialog
+  const [message, setMessage] = useState(false); // State for loading in dialog
 
-  const fetchPlanDetails = async () => {
-    try {
-      // Assuming user.uid is available for fetching user-specific plan details
-      const planRef = doc(firestore, "users", user?.uid); // Firestore collection 'users' and document 'uid'
 
-      const planSnap = await getDoc(planRef);
 
-      if (planSnap.exists()) {
-        const planData = planSnap.data();
-        setCurrentPlan(planData); // Assuming 'plan' is part of the Firestore document
-        //calculateRemainingDays(planData.planEndDate); // Assuming 'planEndDate' exists in Firestore data
-        console.log(currentPlan)
-      } else {
-        console.log("No such document!");
-      }
-    } catch (error) {
-      console.error("Error fetching plan details:", error);
-    }
-  };
   const calculateRemainingDays = (endDate) => {
     const now = dayjs();
     const subscriptionEnd = dayjs(endDate);
@@ -231,6 +235,26 @@ function SubscriptionPlans({ user }) {
   };
 
   useEffect(() => {
+    const fetchPlanDetails = async () => {
+      try {
+        // Assuming user.uid is available for fetching user-specific plan details
+        const planRef = doc(firestore, "users", user?.uid); // Firestore collection 'users' and document 'uid'
+
+        const planSnap = await getDoc(planRef);
+
+        if (planSnap.exists()) {
+          const planData = planSnap.data();
+          console.log("Plan data retrieved:", planData); // Log the plan data
+          setCurrentPlan(planData); // Assuming 'plan' is part of the Firestore document
+          //calculateRemainingDays(planData.planEndDate); // Assuming 'planEndDate' exists in Firestore data
+          console.log(currentPlan)
+        } else {
+          console.log("No such document!");
+        }
+      } catch (error) {
+        console.error("Error fetching plan details:", error);
+      }
+    };
     const fetchData = async () => {
       if (user) {
         await fetchPlanDetails(); // Ensure this function does not update 'user' or 'currentPlan'
@@ -241,6 +265,7 @@ function SubscriptionPlans({ user }) {
   }, [user]); // Run fetchPlanDetails only when 'user' changes
 
   useEffect(() => {
+
     if (currentPlan) {
       calculateRemainingDays(currentPlan.subscriptionEndDate); // Ensure this function does not update 'currentPlan'
     }
@@ -248,6 +273,7 @@ function SubscriptionPlans({ user }) {
 
 
   const handleCancelSubscription = async () => {
+    setLoading(true)
     try {
       const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/cancel-subscription`, {
         method: 'POST',
@@ -261,15 +287,26 @@ function SubscriptionPlans({ user }) {
       const data = await response.json();
       console.log(data)
       if (response.ok) {
-        alert('Subscription canceled successfully');
+        setMessage('Your Subscription has been canceled successfully');
         // Optionally, refresh the plan details or redirect the user
+        window.href('/upgrade')
       } else {
-        alert(`Failed to cancel subscription: ${data.error}`);
+        setMessage(`Failed to cancel subscription: ${data.error}`);
       }
     } catch (error) {
       console.error('Error canceling subscription:', error);
-      alert('An error occurred while canceling the subscription.');
+      //alert('An error occurred while canceling the subscription.');
     }
+    finally {
+      setLoading(false)
+    }
+  };
+  const handleConfimSubscription = () => {
+    setOpenDialog(true); // Open the confirmation dialog
+  };
+
+  const handleCloseDialog = () => {
+    setOpenDialog(false); // Close the dialog
   };
 
   return (
@@ -285,65 +322,93 @@ function SubscriptionPlans({ user }) {
                 <Typography variant="h4" align="center" color="text.primary" gutterBottom>
                   Choose Your Plan
                 </Typography>
-                <Typography variant="h5" align="center" color="text.secondary" paragraph>
+                <Typography variant="body1" align="center" color="text.secondary">
                   Select the plan that best fits your needs and take your career to the next level with NexaAI.
                 </Typography>
                 <Grid container spacing={4} alignItems="flex-end">
                   {plans.map((plan) => (
                     <Grid item key={plan.title} xs={12} sm={6} md={3}>
-                      <PricingCard plan={plan} email={user?.email} userid={user?.uid} />
+                      <PricingCard plan={plan} email={user?.email} userid={user?.uid} currentPlan={currentPlan} />
                     </Grid>
                   ))}
                 </Grid>
               </>
             ) : (
               <>
-                <Typography variant="h4" color="primary">
-                  Your Current Plan: {currentPlan.plan}
-                </Typography>
-                  <Box sx={{ m: 1 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 1 }}>
-                      <CheckCircleOutlineIcon color="primary" sx={{ mr: 1 }} />
-                      <Typography variant="body1">All Basic features</Typography>
-                    </Box>
+                <Box>
+                  <Typography variant="h4" color="primary">
+                    Your Current Plan: {currentPlan.plan}
+                  </Typography>
+                  <Typography variant="h6" color="text.secondary">
+                    Subscription Status: {currentPlan.status}
+                  </Typography>
+                  {remainingDays !== null && (
+                    <Typography variant="h6" color="text.secondary">
+                      {remainingDays > 0
+                        ? `Days Remaining: ${remainingDays} days`
+                        : 'Your subscription has expired'}
+                    </Typography>
+                  )}
+                </Box>
+                <Box sx={{ m: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 1 }}>
+                    <CheckCircleOutlineIcon color="primary" sx={{ mr: 1 }} />
+                    <Typography variant="body1">All Basic features</Typography>
+                  </Box>
 
-                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 1 }}>
-                      <CheckCircleOutlineIcon color="primary" sx={{ mr: 1 }} />
-                      <Typography variant="body1">Unlimited CV optimizations</Typography>
-                    </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 1 }}>
+                    <CheckCircleOutlineIcon color="primary" sx={{ mr: 1 }} />
+                    <Typography variant="body1">Unlimited CV optimizations</Typography>
+                  </Box>
 
-                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 1 }}>
-                      <CheckCircleOutlineIcon color="primary" sx={{ mr: 1 }} />
-                      <Typography variant="body1">Access to premium templates</Typography>
-                    </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 1 }}>
+                    <CheckCircleOutlineIcon color="primary" sx={{ mr: 1 }} />
+                    <Typography variant="body1">Access to premium templates</Typography>
+                  </Box>
 
-                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 1 }}>
-                      <CheckCircleOutlineIcon color="primary" sx={{ mr: 1 }} />
-                      <Typography variant="body1">Priority email support</Typography>
-                    </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 1 }}>
+                    <CheckCircleOutlineIcon color="primary" sx={{ mr: 1 }} />
+                    <Typography variant="body1">Priority email support</Typography>
+                  </Box>
                 </Box>
 
 
-                <Typography variant="h6" color="text.secondary">
-                  Subscription Status: {currentPlan.status}
-                </Typography>
-                {remainingDays !== null && (
-                  <Typography variant="h6" color="text.secondary">
-                    {remainingDays > 0
-                      ? `Days Remaining: ${remainingDays} days`
-                      : 'Your subscription has expired'}
-                  </Typography>
-                )}
+
                 {
                   currentPlan.status === 'active' ? (
-                    <Button
-                      variant="outlined"
-                      color="secondary"
-                      onClick={handleCancelSubscription}
-                      sx={{ mt: 2 }}
-                    >
-                      Cancel Subscription
-                    </Button>
+                    <>
+                      <Button
+                        disabled={loading}
+                        variant="outlined"
+                        color="secondary"
+                        onClick={handleConfimSubscription}
+                        sx={{ mt: 2 }}
+                      >
+                        Cancel Subscription
+                      </Button>
+                      <Typography variant="h4" marginTop={4} align="center" color="text.primary" gutterBottom>
+                        Switch your subscription
+                      </Typography>
+                      <Typography variant="body1" align="center" color="text.secondary">
+                        Select the plan that best fits your needs and take your career to the next level with NexaAI.
+                      </Typography>
+                      <Grid container spacing={4} alignItems="center" justifyContent="center">
+                        {plans
+                          .filter(plan => {
+                            // If switching plans, do not include the Basic plan
+                            if (currentPlan && currentPlan.status === 'active') {
+                              return false; // Exclude Basic plan
+                            }
+                            return true; // Include all other plans
+                          })
+                          .map(plan => (
+                            <Grid item key={plan.title} xs={12} sm={6} md={3}>
+                              <PricingCard plan={plan} email={user?.email} userid={user?.uid} currentPlan={currentPlan} />
+                            </Grid>
+                          ))}
+                      </Grid>
+
+                    </>
                   ) : null
                 }
 
@@ -354,7 +419,7 @@ function SubscriptionPlans({ user }) {
                       <Typography variant="h4" marginTop={4} align="center" color="text.primary" gutterBottom>
                         Please Subscribe Again
                       </Typography>
-                      <Typography variant="h5" align="center" color="text.secondary" paragraph>
+                      <Typography variant="body1" align="center" color="text.secondary">
                         Select the plan that best fits your needs and take your career to the next level with NexaAI.
                       </Typography>
                       <Grid container spacing={4} alignItems="flex-end">
@@ -372,7 +437,45 @@ function SubscriptionPlans({ user }) {
             )}
           </Box>
         )}
-
+        <Dialog
+          open={openDialog}
+          onClose={handleCloseDialog}
+        >
+          <DialogContent>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+              {loading ? (
+                <CircularProgress />
+              ) : message ? (
+                <DialogContentText>
+                  {message}
+                </DialogContentText>
+              ) : (
+                <DialogContentText>
+                  Are you sure you want to cancel your subscription? This action cannot be undone.
+                </DialogContentText>
+              )}
+            </Box>
+          </DialogContent>
+            <DialogActions>
+              {message ? (
+                <Button onClick={() => {
+                  handleCloseDialog(); // Close the dialog
+                  window.location.reload(); // Reload the page
+                }} color="primary">
+                  Okay
+                </Button>
+              ) : (
+                <>
+                  <Button onClick={handleCloseDialog} color="primary">
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCancelSubscription} color="secondary" disabled={loading}>
+                    {loading ? 'Processing...' : 'Confirm'}
+                  </Button>
+                </>
+              )}
+            </DialogActions>
+        </Dialog>
       </Container>
     </ThemeProvider>
   );
