@@ -57,7 +57,7 @@ const PremiumUserBadge = () => {
     </ThemeProvider>
   );
 };
-const HomePage = ({ user }) => {
+const OptimizeCvPage = ({ user }) => {
   const [file, setFile] = useState(null);
   const [fileContent, setFileContent] = useState("");
   const [jobDescription, setJobDescription] = useState("");
@@ -344,4 +344,4 @@ const HomePage = ({ user }) => {
   );
 };
 
-export default HomePage;
+export default OptimizeCvPage;

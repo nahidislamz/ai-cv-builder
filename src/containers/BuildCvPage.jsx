@@ -14,10 +14,7 @@ import {
     FormControl, InputLabel, Select, MenuItem,
     Alert
 } from '@mui/material';
-import { createTheme, ThemeProvider } from '@mui/material/styles';
 import TipsSlider from '../components/TipsSlider';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
 import IconButton from '@mui/material/IconButton';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { Lightbulb } from '@mui/icons-material';
@@ -25,6 +22,8 @@ import Groq from "groq-sdk";
 import { firestore } from '../firebase'; // Path to your firebase configuration
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { CircularProgress } from '@mui/material';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 const groq = new Groq({ apiKey: process.env.REACT_APP_GROQ_API_KEY, dangerouslyAllowBrowser: true });
 
@@ -88,23 +87,10 @@ const toolbarOptions = [
     [{ 'list': 'bullet' }],   // Bullet list option
 ];
 
-const theme = createTheme({
-    palette: {
-        primary: {
-            main: "#ff7043",
-        },
-        background: {
-            default: "#f5f5f5",
-        },
-    },
-    typography: {
-        fontFamily: "Arial, sans-serif",
-    },
-});
 
 const steps = ['Personal', 'Education', 'Experience', 'Skills', 'Additional Info', 'Profile Summary'];
 
-function BuildCvPage({ user }) {
+function BuildCvPage({ user , theme}) {
     const [activeStep, setActiveStep] = useState(0);
     const [cvData, setCvData] = useState({
         personalInfo: { name: '', email: '', phone: '' },
@@ -966,9 +952,10 @@ function BuildCvPage({ user }) {
     );
 
     return (
-        <ThemeProvider theme={theme}>
             <Container maxWidth="md" sx={{ mb: 4 }}>
+                <Box marginTop={2}>
                 <TipsSlider />
+                </Box>
                 <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 }, mt: 4 }}>
                     <Typography variant="h4" align="center" gutterBottom>
                         Build Your CV
@@ -1000,7 +987,6 @@ function BuildCvPage({ user }) {
                     )}
                 </Paper>
             </Container>
-        </ThemeProvider>
     );
 }
 

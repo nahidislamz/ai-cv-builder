@@ -28,14 +28,8 @@ app.use(cors({
   methods: ['POST', 'GET', 'OPTIONS'],
 }));
 
-// Cancel Subscription Endpoint
-
 
 // Use bodyParser.json for regular endpoints
-
-
-
-
 const createCustomer = async (email) => {
   try {
     const customer = await stripe.customers.create({

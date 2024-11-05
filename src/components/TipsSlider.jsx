@@ -35,7 +35,7 @@ const tips = [
 
 export default function TipsSlider() {
   const [currentTip, setCurrentTip] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying] = useState(true);
 
 
   const goToNextTip = useCallback(() => {

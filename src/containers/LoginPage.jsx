@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, TextField, Button, Container, Link } from '@mui/material';
+import { Box, Typography, TextField, Button, Container, Link, CircularProgress } from '@mui/material';
 import { signInWithPopup, GoogleAuthProvider, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
-import { auth, firestore } from '../firebase'; // Firestore must be correctly configured
-import { useNavigate } from 'react-router-dom';
+import { auth, firestore } from '../firebase';
+import { useNavigate, useLocation } from 'react-router-dom';
 import GoogleIcon from '@mui/icons-material/Google';
-import { doc, getDoc, setDoc } from 'firebase/firestore'; // Firestore methods // Import Firestore methods
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Link as RouterLink } from 'react-router-dom';
 
 function LoginPage() {
@@ -12,6 +12,7 @@ function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const navigate = useNavigate();
+    const location = useLocation(); // Get previous location if redirected
 
     // Google Sign-In Handler
     const handleGoogleSignIn = async () => {
@@ -19,62 +20,39 @@ function LoginPage() {
         setError(null);
 
         const provider = new GoogleAuthProvider();
-
         try {
             const userCredential = await signInWithPopup(auth, provider);
             const user = userCredential.user;
+            await initializeUserPlan(user.uid, user.email);
 
-            // Check if the user exists and their plan
-            await checkUserPlan(user.uid, user.email);
-
-            // Redirect to the homepage
-            navigate('/home');
+            const redirectPath = location.state?.from?.pathname || '/home'; // Redirect to previous page or home
+            navigate(redirectPath);
         } catch (err) {
             setError('Failed to sign in with Google');
-            console.error(err); // Log the error for debugging
+            console.error(err);
         } finally {
             setLoading(false);
         }
     };
 
-
-    // Check if the user is on a free or pro plan
-    const checkUserPlan = async (uid, email) => {
-        try {
-            const userDocRef = doc(firestore, 'users', uid);
-            const userDoc = await getDoc(userDocRef);
-
-            if (!userDoc.exists()) {
-                await setDoc(userDocRef, {
-                    email: email,
-                    uid: uid,
-                    subscriptionId: 'N/A',
-                    plan: 'free', // Default plan is 'free'
-                    status: 'inactive',
-                    usage: { date: new Date().toDateString(), count: 0 },
-                });
-
-            }
-        } catch (error) {
-            console.error("Error fetching or creating user plan: ", error);
-        }
-    };
-
-    // Email/Password Sign-In Handler
+    // Email Link Sign-In Handler with validation
     const handleEmailLinkSignIn = async () => {
+        if (!validateEmail(email)) {
+            setError('Please enter a valid email address');
+            return;
+        }
         setLoading(true);
         setError(null);
 
         const actionCodeSettings = {
-            url: 'https://ai-resume-opt.web.app/login', // Change to your desired URL
-            handleCodeInApp: true, // Must be true for email link sign-in
+            url: 'https://ai-resume-opt.web.app/login',
+            handleCodeInApp: true,
         };
 
         try {
             await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-            // Save the email locally to complete sign-in later
             window.localStorage.setItem('emailForSignIn', email);
-            alert(`Check your inbox for a sign-in link!`);
+            alert('Check your inbox for a sign-in link!');
         } catch (err) {
             setError('Failed to send sign-in link to email');
             console.error(err);
@@ -83,24 +61,20 @@ function LoginPage() {
         }
     };
 
-    // Check for Email Link and Sign-In
+    // Email link sign-in checker
     useEffect(() => {
         const emailLink = window.location.href;
         if (isSignInWithEmailLink(auth, emailLink)) {
-            const email = window.localStorage.getItem('emailForSignIn');
-            if (email) {
-                signInWithEmailLink(auth, email, emailLink)
-                    .then((userCredential) => {
+            const savedEmail = window.localStorage.getItem('emailForSignIn');
+            if (savedEmail) {
+                signInWithEmailLink(auth, savedEmail, emailLink)
+                    .then(async (userCredential) => {
                         const user = userCredential.user;
-
-                        // Clear the email from local storage
                         window.localStorage.removeItem('emailForSignIn');
+                        await initializeUserPlan(user.uid, user.email);
 
-                        // Check if the user exists and their plan
-                        checkUserPlan(user.uid, user.email);
-
-                        // Successfully signed in, redirect to home
-                        navigate('/home');
+                        const redirectPath = location.state?.from?.pathname || '/home';
+                        navigate(redirectPath);
                     })
                     .catch((error) => {
                         setError('Failed to sign in with the link');
@@ -108,7 +82,30 @@ function LoginPage() {
                     });
             }
         }
-    }, [navigate]);;
+    }, [navigate, location]);
+
+    // Utility function for plan initialization
+    const initializeUserPlan = async (uid, email) => {
+        try {
+            const userDocRef = doc(firestore, 'users', uid);
+            const userDoc = await getDoc(userDocRef);
+            if (!userDoc.exists()) {
+                await setDoc(userDocRef, {
+                    email,
+                    uid,
+                    subscriptionId: 'N/A',
+                    plan: 'free',
+                    status: 'inactive',
+                    usage: { date: new Date().toDateString(), count: 0 },
+                });
+            }
+        } catch (error) {
+            console.error('Error initializing user plan: ', error);
+        }
+    };
+
+    // Email validation function
+    const validateEmail = (email) => /\S+@\S+\.\S+/.test(email);
 
     return (
         <Container component="main" maxWidth="xs">
@@ -122,16 +119,16 @@ function LoginPage() {
                 <Typography variant="h4" sx={{ mb: 4, fontWeight: 'medium' }}>
                     Spark your career
                 </Typography>
-                <Box sx={{ mt: 1 }}>
+                <Box sx={{ mt: 1, width: '100%' }}>
                     <Button
                         fullWidth
                         variant="outlined"
                         startIcon={<GoogleIcon />}
                         sx={{ mb: 2, height: '50px' }}
                         onClick={handleGoogleSignIn}
-                        disabled={loading} // Disable the button while loading
+                        disabled={loading}
                     >
-                        {loading ? 'Signing in...' : 'Continue with Google'}
+                        {loading ? <CircularProgress size={24} /> : 'Continue with Google'}
                     </Button>
                     {error && (
                         <Typography color="error" align="center" sx={{ mt: 2 }}>
@@ -161,7 +158,7 @@ function LoginPage() {
                         onClick={handleEmailLinkSignIn}
                         disabled={loading}
                     >
-                        {loading ? 'Sending link...' : 'Send Sign-In Link'}
+                        {loading ? <CircularProgress size={24} /> : 'Send Sign-In Link'}
                     </Button>
                     <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 2 }}>
                         By continuing, you acknowledge NexaAI's{' '}
