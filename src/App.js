@@ -37,6 +37,7 @@ function App() {
   const savedMode = localStorage.getItem('themeMode');
   const initialMode = savedMode || (prefersDarkMode ? 'dark' : 'light');
   const [mode, setMode] = useState(initialMode);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   const theme = createTheme({
     palette: {
@@ -60,9 +61,21 @@ function App() {
       localStorage.setItem('themeMode', newMode); // Save the new mode to localStorage
       return newMode;
     });
+
+    setIsDarkMode((prevMode) => !prevMode);
   };
 
   useEffect(() => {
+
+    if (isDarkMode) {
+      document.body.classList.remove('dark-mode');
+      document.body.classList.add('light-mode');
+    } else {
+      document.body.classList.remove('light-mode');
+      document.body.classList.add('dark-mode');
+    }
+  
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setUser(user);
@@ -73,7 +86,8 @@ function App() {
     });
 
     return () => unsubscribe();
-  }, [navigate]);
+
+  }, [navigate,isDarkMode]);
 
   if (loading) {
     return (

@@ -24,6 +24,7 @@ import { doc, setDoc, getDoc } from "firebase/firestore";
 import { CircularProgress } from '@mui/material';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+import './style.css'
 
 const groq = new Groq({ apiKey: process.env.REACT_APP_GROQ_API_KEY, dangerouslyAllowBrowser: true });
 
@@ -96,7 +97,7 @@ function BuildCvPage({ user , theme}) {
         personalInfo: { name: '', email: '', phone: '' },
         education: [{ school: '', degree: '', graduationYear: '', subjects: '' }],
         workExperience: [{ company: '', position: '', startDate: '', endDate: '', description: '' }],
-        skills: [],
+        skills: [''],
         certifications: [],
         projects: [],
         languages: [{ language: '', proficiency: '' }],
@@ -207,7 +208,8 @@ function BuildCvPage({ user , theme}) {
             if (Array.isArray(prevData[section])) {
                 const newArray = [...prevData[section]];
                 if (typeof newArray[index] === 'object') {
-                    newArray[index] = { ...newArray[index], [field]: value };
+                    // Assuming each skill is an object with a 'name' property
+                    newArray[index] = { ...newArray[index], [field || 'name']: value }; // Default field is 'name'
                 } else {
                     newArray[index] = value;
                 }
@@ -218,7 +220,7 @@ function BuildCvPage({ user , theme}) {
                 return { ...prevData, [section]: value };
             }
         });
-
+    
         setValidationErrors((prevErrors) => {
             const newErrors = { ...prevErrors };
             if (newErrors[section]?.[index]?.[field]) {
@@ -227,8 +229,10 @@ function BuildCvPage({ user , theme}) {
             return newErrors;
         });
     };
+    
 
     const addListItem = (section) => {
+
         setCvData((prevData) => ({
             ...prevData,
             [section]: [
@@ -239,7 +243,9 @@ function BuildCvPage({ user , theme}) {
                     ? { language: '', proficiency: '' }
                     : section === 'education'
                     ? { school: '', degree: '', graduationYear: '', subjects: '' } // Initialize education fields
+                    :section === 'skills' || section === 'hobbies' ? '' 
                     : {}
+                   
             ]
         }));
         if (section === 'education') {
@@ -248,6 +254,7 @@ function BuildCvPage({ user , theme}) {
                 education: [...(prevErrors.education || []), { school: '', degree: '', graduationYear: '' }]
             }));
         }
+
     };
     
 
@@ -276,7 +283,6 @@ function BuildCvPage({ user , theme}) {
         }
     };
     
-
     const handleGenerateSummary = async () => {
         try {
             setLoading(true);
@@ -350,14 +356,6 @@ function BuildCvPage({ user , theme}) {
             console.error("Error generating CV:", error);
         }
     };
-    
-
-
-
-
-
-
-
 
     const renderStepContent = (step) => {
         switch (step) {
@@ -451,7 +449,6 @@ function BuildCvPage({ user , theme}) {
                                 </Grid>
                                 <Grid item xs={12}>
                                     <ReactQuill
-                                        theme='snow'
                                         value={edu.subjects} // Holds subjects
                                         onChange={(value) => handleInputChange('education', 'subjects', value, index)} // Use the value directly
                                         placeholder="Add your subjects here"
@@ -564,29 +561,29 @@ function BuildCvPage({ user , theme}) {
                             Skills
                         </Typography>
                         {cvData.skills.map((skill, index) => (
-                            <Grid container spacing={2} key={index} sx={{ mb: 2 }}>
-                                <Grid item xs={11}> {/* Adjusting the size for the skill input */}
-                                    <TextField
-                                        required
-                                        fullWidth
-                                        label={`Skill ${index + 1}`}
-                                        value={skill}
-                                        onChange={(e) => handleInputChange('skills', null, e.target.value, index)}
-                                    />
-                                </Grid>
-                                {index > 0 && ( // Show the remove button only if it's not the first skill
-                                    <Grid item xs={1}> {/* Adjust the size to fit the button next to the text field */}
-                                        <IconButton
-                                            onClick={() => removeListItem('skills', index)}
-                                            sx={{ color: 'red' }}
-                                            aria-label="remove skill" // Accessibility
-                                        >
-                                            <DeleteIcon /> {/* Use the Delete icon */}
-                                        </IconButton>
+                                <Grid container spacing={2} key={index} sx={{ mb: 2 }}>
+                                    <Grid item xs={11}> 
+                                        <TextField
+                                            required
+                                            fullWidth
+                                            label={`Skill ${index + 1}`}
+                                            value={skill} // If it's an object, use `name` (or the appropriate field), otherwise use the skill itself
+                                            onChange={(e) => handleInputChange('skills', 'name', e.target.value, index)} // Set the field to 'name'
+                                        />
                                     </Grid>
-                                )}
-                            </Grid>
-                        ))}
+                                    {index > 0 && ( // Show the remove button only if it's not the first skill
+                                        <Grid item xs={1}> 
+                                            <IconButton
+                                                onClick={() => removeListItem('skills', index)}
+                                                sx={{ color: 'red' }}
+                                                aria-label="remove skill" 
+                                            >
+                                                <DeleteIcon /> 
+                                            </IconButton>
+                                        </Grid>
+                                    )}
+                                </Grid>
+                            ))}
                         <Button onClick={() => addListItem('skills')} variant="outlined" fullWidth size='sm'>
                             Add Skill
                         </Button>
@@ -815,18 +812,18 @@ function BuildCvPage({ user , theme}) {
             <Typography variant="body1" gutterBottom>
                 Phone: {cvData.personalInfo.phone}
             </Typography>
-
+    
             {cvData.profileSummary && (
                 <Box>
                     <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
                         Profile Summary
                     </Typography>
-                    <Typography variant='body1' sx={{ textAlign: 'justify' }}>
+                    <Typography variant="body1" sx={{ textAlign: 'justify' }}>
                         {cvData.profileSummary}
                     </Typography>
                 </Box>
             )}
-
+    
             <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
                 Education
             </Typography>
@@ -838,10 +835,13 @@ function BuildCvPage({ user , theme}) {
                     <Typography variant="body1" component="span">
                         from {edu.school} ({edu.graduationYear})
                     </Typography>
-                    <Typography variant="body2" dangerouslySetInnerHTML={{ __html: edu.subjects }} />
+                    {/* Make sure that edu.subjects is a string before rendering */}
+                    <Typography variant="body2">
+                        {typeof edu.subjects === 'string' ? edu.subjects : ''}
+                    </Typography>
                 </Box>
             ))}
-
+    
             <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
                 Work Experience
             </Typography>
@@ -868,23 +868,23 @@ function BuildCvPage({ user , theme}) {
                             : 'Present'}
                         )
                     </Typography>
-
-                    <Typography
-                        variant="body2"
-                        dangerouslySetInnerHTML={{ __html: exp.description }} // Render HTML safely
-                    />
+    
+                    {/* Ensure description is a string */}
+                    <Typography variant="body2">
+                        {typeof exp.description === 'string' ? exp.description : ''}
+                    </Typography>
                 </Box>
             ))}
-
+    
             <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
                 Skills
             </Typography>
             <ul>
                 {cvData.skills.map((skill, index) => (
-                    <li key={index}>{skill}</li>
+                    <li key={index}>{typeof skill === 'string' ? skill : ''}</li>
                 ))}
             </ul>
-
+    
             {cvData.certifications?.length > 0 && (
                 <>
                     <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
@@ -892,12 +892,12 @@ function BuildCvPage({ user , theme}) {
                     </Typography>
                     <ul>
                         {cvData.certifications.map((cert, index) => (
-                            <li key={index}>{cert}</li>
+                            <li key={index}>{typeof cert === 'string' ? cert : ''}</li>
                         ))}
                     </ul>
                 </>
             )}
-
+    
             {cvData.projects?.length > 0 && (
                 <>
                     <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
@@ -916,7 +916,7 @@ function BuildCvPage({ user , theme}) {
                     ))}
                 </>
             )}
-
+    
             {cvData.languages?.length > 0 && (
                 <>
                     <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
@@ -924,12 +924,12 @@ function BuildCvPage({ user , theme}) {
                     </Typography>
                     <ul>
                         {cvData.languages.map((lang, index) => (
-                            <li key={index}>{lang.language} - {lang.proficiency}</li>
+                            <li key={index}>{`${lang.language} - ${lang.proficiency}`}</li>
                         ))}
                     </ul>
                 </>
             )}
-
+    
             {cvData.hobbies.length > 0 && (
                 <>
                     <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
@@ -942,7 +942,7 @@ function BuildCvPage({ user , theme}) {
                     </ul>
                 </>
             )}
-
+    
             {cvData.references.available && (
                 <Typography variant="body1" sx={{ mt: 2 }}>
                     References available upon request.
@@ -950,7 +950,7 @@ function BuildCvPage({ user , theme}) {
             )}
         </Paper>
     );
-
+    
     return (
             <Container maxWidth="md" sx={{ mb: 4 }}>
                 <Box marginTop={2}>

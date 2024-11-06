@@ -5,20 +5,12 @@ import {
   Container,
   Typography,
   Paper,
-  createTheme,
-  ThemeProvider,
 } from '@mui/material';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { useNavigate } from 'react-router-dom';
 import { firestore } from '../firebase';
 import {  doc, getDoc } from 'firebase/firestore'; 
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#ff7043',
-    },
-  },
-});
+
 
 function PaymentSuccessPage({ user }) {
   const [invoiceId, setInvoiceId] = useState(null);
@@ -50,7 +42,7 @@ function PaymentSuccessPage({ user }) {
       if (invoiceId) {
         try {
           console.log('Fetching invoice with ID:', invoiceId);
-          const response = await fetch(process.inv.REACT_APP_BACKEND_URL+`/invoice/${invoiceId}`);
+          const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/invoice/${invoiceId}`);
           if (!response.ok) {
             const errorMessage = await response.text();
             throw new Error(`HTTP error! status: ${response.status} - ${errorMessage}`);
@@ -83,7 +75,6 @@ function PaymentSuccessPage({ user }) {
   };
 
   return (
-    <ThemeProvider theme={theme}>
       <Container component="main" maxWidth="sm" sx={{ mb: 4 }}>
         <Paper variant="outlined" sx={{ my: { xs: 3, md: 6 }, p: { xs: 2, md: 3 } }}>
           <Box
@@ -93,11 +84,10 @@ function PaymentSuccessPage({ user }) {
               alignItems: 'center',
             }}
           >
-            <CheckCircleOutlineIcon color="primary" sx={{ fontSize: 60, mb: 2 }} />
+            <CheckCircleOutlineIcon color="success" sx={{ fontSize: 60, mb: 2 }} />
             <Typography component="h1" variant="h4" align="center" gutterBottom>
               Payment Successful!
             </Typography>
-            <Typography>{invoiceId}</Typography>
             <Typography variant="subtitle1" align="center" sx={{ mb: 4 }}>
               Thank you for your purchase. Your payment has been processed successfully.
             </Typography>
@@ -130,8 +120,8 @@ function PaymentSuccessPage({ user }) {
                 <Typography variant="h5" gutterBottom>
                   Invoice Details
                 </Typography>
-                <Typography><strong>Invoice ID:</strong> {invoice.id}</Typography>
-                <Typography><strong>Amount Due:</strong> {invoice.amount_due / 100} {invoice.currency.toUpperCase()}</Typography>
+                <Typography><strong>Invoice ID:</strong> {invoiceId}</Typography>
+                <Typography><strong>Amount Due:</strong> {invoice.amount_due / 100} {invoice.currency}</Typography>
                 <Typography><strong>Status:</strong> {invoice.status}</Typography>
                 <Typography><strong>Date:</strong> {new Date(invoice.created * 1000).toLocaleDateString()}</Typography>
                 <Typography><strong>Description:</strong> {invoice.description || 'No description available.'}</Typography>
@@ -141,7 +131,6 @@ function PaymentSuccessPage({ user }) {
           </Box>
         </Paper>
       </Container>
-    </ThemeProvider>
   );
 }
 

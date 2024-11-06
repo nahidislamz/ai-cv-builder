@@ -1,0 +1,21 @@
+/* styles.css */
+
+:root {
+    --placeholder-dark: rgb(255, 255, 255); /* Light mode placeholder color */
+    --placeholder-light: rgba(44, 44, 44, 0.952); /* Dark mode placeholder color */
+  }
+  
+  /* Apply styles for the placeholder */
+  .ql-editor.ql-blank::before {
+    color: var(--placeholder-light); /* Default to light mode */
+    opacity: 0.5;
+  }
+  
+  /* Dark mode styles */
+  body.light-mode .ql-editor.ql-blank::before {
+    color: var(--placeholder-light); /* Dark mode placeholder color */
+  }
+  body.dark-mode .ql-editor.ql-blank::before {
+    color: var(--placeholder-dark); /* Dark mode placeholder color */
+  }
+  
