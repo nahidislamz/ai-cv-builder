@@ -50,10 +50,10 @@ app.get('/invoice/:invoiceId', async (req, res) => {
     // Check if the invoice has a downloadable PDF
     if (invoice && invoice.invoice_pdf) {
       // If the invoice can be downloaded, send a response to indicate that
-      return res.json({ download: true, pdfUrl: invoice.invoice_pdf });
+      return res.json({ invoice: invoice, pdfUrl: invoice.invoice_pdf });
     } else {
       // If the invoice cannot be downloaded, return the invoice details
-      return res.json({ download: false, invoice });
+      return res.json({ invoice:invoice });
     }
   } catch (error) {
     console.error("Error retrieving invoice:", error);

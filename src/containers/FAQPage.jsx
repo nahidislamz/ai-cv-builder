@@ -7,8 +7,13 @@ import {
   AccordionDetails,
   Box,
   Divider,
+  useTheme,
+  useMediaQuery,
+  Paper,
 } from '@mui/material';
+import { styled } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const faqs = [
   {
@@ -45,46 +50,124 @@ const faqs = [
   }
 ];
 
+const StyledAccordion = styled(Accordion)(({ theme }) => ({
+  border: `1px solid ${theme.palette.divider}`,
+  borderRadius: theme.shape.borderRadius,
+  '&:not(:last-child)': {
+    borderBottom: 0,
+  },
+  '&:before': {
+    display: 'none',
+  },
+}));
+
+const StyledAccordionSummary = styled(AccordionSummary)(({ theme }) => ({
+  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, .05)' : 'rgba(0, 0, 0, .03)',
+  flexDirection: 'row-reverse',
+  '& .MuiAccordionSummary-expandIconWrapper.Mui-expanded': {
+    transform: 'rotate(90deg)',
+  },
+  '& .MuiAccordionSummary-content': {
+    marginLeft: theme.spacing(1),
+  },
+}));
+
+const StyledAccordionDetails = styled(AccordionDetails)(({ theme }) => ({
+  padding: theme.spacing(2),
+  borderTop: '1px solid rgba(0, 0, 0, .125)',
+}));
+
+const MotionContainer = motion(Container);
+const MotionTypography = motion(Typography);
+const MotionBox = motion(Box);
+
 export default function FAQPage() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   return (
-    <Container maxWidth="md" sx={{ my: 8 }}>
-      <Typography variant="h3" component="h1" gutterBottom align="center">
-        Frequently Asked Questions
-      </Typography>
-      <Box my={4}>
-        {faqs.map((faq, index) => (
-          <Accordion key={index}>
-            <AccordionSummary
-              expandIcon={<ExpandMoreIcon />}
-              aria-controls={`faq-content-${index}`}
-              id={`faq-header-${index}`}
+    <MotionContainer
+      maxWidth="md"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <Box my={8}>
+        <MotionTypography
+          variant="h2"
+          component="h1"
+          gutterBottom
+          align="center"
+          fontWeight="bold"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+        >
+          Frequently Asked Questions
+        </MotionTypography>
+        <MotionBox
+          my={6}
+          initial="hidden"
+          animate="visible"
+          variants={{
+            visible: { transition: { staggerChildren: 0.07 } },
+          }}
+        >
+          {faqs.map((faq, index) => (
+            <motion.div
+              key={index}
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0 },
+              }}
             >
-              <Typography variant="h6">{faq.question}</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Typography>{faq.answer}</Typography>
-            </AccordionDetails>
-          </Accordion>
-        ))}
+              <StyledAccordion>
+                <StyledAccordionSummary
+                  expandIcon={<ExpandMoreIcon />}
+                  aria-controls={`faq-content-${index}`}
+                  id={`faq-header-${index}`}
+                >
+                  <Typography variant="h6">{faq.question}</Typography>
+                </StyledAccordionSummary>
+                <StyledAccordionDetails>
+                  <Typography>{faq.answer}</Typography>
+                </StyledAccordionDetails>
+              </StyledAccordion>
+            </motion.div>
+          ))}
+        </MotionBox>
+        <Divider sx={{ my: 6 }} />
+        <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
+          <MotionTypography
+            variant="h4"
+            gutterBottom
+            fontWeight="bold"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.5 }}
+          >
+            Refund Policy
+          </MotionTypography>
+          <MotionBox
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6, duration: 0.5 }}
+          >
+            <Typography variant="body1" paragraph>
+              At AI CV Builder, we are committed to providing high-quality services to help you create the best possible CV. Please note that we have a strict no-refund policy.
+            </Typography>
+            <Typography variant="body1" paragraph>
+              Once you have made a purchase and gained access to our AI CV building and optimization tools, we cannot offer refunds. This policy is in place because our service provides immediate access to valuable digital content and tools.
+            </Typography>
+            <Typography variant="body1" paragraph>
+              We encourage all users to carefully review our service offerings, terms of use, and this FAQ section before making a purchase. If you have any questions or concerns about our services, please contact our customer support team before buying.
+            </Typography>
+            <Typography variant="body1">
+              By making a purchase, you acknowledge and agree to this no-refund policy. We appreciate your understanding and look forward to helping you create an outstanding CV.
+            </Typography>
+          </MotionBox>
+        </Paper>
       </Box>
-      <Divider sx={{ my: 4 }} />
-      <Box>
-        <Typography variant="h5" gutterBottom>
-          Refund Policy
-        </Typography>
-        <Typography variant="body1" paragraph>
-          At AI CV Builder, we are committed to providing high-quality services to help you create the best possible CV. Please note that we have a strict no-refund policy.
-        </Typography>
-        <Typography variant="body1" paragraph>
-          Once you have made a purchase and gained access to our AI CV building and optimization tools, we cannot offer refunds. This policy is in place because our service provides immediate access to valuable digital content and tools.
-        </Typography>
-        <Typography variant="body1" paragraph>
-          We encourage all users to carefully review our service offerings, terms of use, and this FAQ section before making a purchase. If you have any questions or concerns about our services, please contact our customer support team before buying.
-        </Typography>
-        <Typography variant="body1">
-          By making a purchase, you acknowledge and agree to this no-refund policy. We appreciate your understanding and look forward to helping you create an outstanding CV.
-        </Typography>
-      </Box>
-    </Container>
+    </MotionContainer>
   );
 }

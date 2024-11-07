@@ -1,32 +1,54 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-    Container,
-    Typography,
-    TextField,
-    Button,
-    Grid,
-    Paper,
-    Box,
-    Stepper,
-    Step,
-    StepLabel,
-    useMediaQuery,
-    FormControl, InputLabel, Select, MenuItem,
-    Alert
+  Container,
+  Typography,
+  TextField,
+  Button,
+  Grid,
+  Paper,
+  Box,
+  Stepper,
+  Step,
+  StepLabel,
+  useMediaQuery,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Alert,
+  CircularProgress,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
 } from '@mui/material';
-import TipsSlider from '../components/TipsSlider';
+import { styled, useTheme } from '@mui/material/styles';
+import {
+  CloudUpload as CloudUploadIcon,
+  Delete as DeleteIcon,
+  Download as DownloadIcon,
+  Lightbulb ,
+  Save,
+} from '@mui/icons-material';
 import IconButton from '@mui/material/IconButton';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { Lightbulb } from '@mui/icons-material';
-import Groq from "groq-sdk";
-import { firestore } from '../firebase'; // Path to your firebase configuration
-import { doc, setDoc, getDoc } from "firebase/firestore";
-import { CircularProgress } from '@mui/material';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './style.css'
-
+import { motion, AnimatePresence } from 'framer-motion';
+import Groq from "groq-sdk";
+import { jsPDF } from 'jspdf';
+import { firestore } from '../firebase'; // Path to your firebase configuration
+import { doc, setDoc, getDoc } from "firebase/firestore";
+import RenderCv from '../components/RenderCv';
+import htmlDocx from 'html-docx-js/dist/html-docx';
+import mammoth from 'mammoth';
+import pdfToText from 'react-pdftotext';
+import TipsSlider from '../components/TipsSlider'
+import CryptoJS from 'crypto-js';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 const groq = new Groq({ apiKey: process.env.REACT_APP_GROQ_API_KEY, dangerouslyAllowBrowser: true });
+const secretKey = process.env.REACT_APP_SECRET_KEY ;
 
 const getGroqChatCompletion = async (cvData) => {
     // Extract relevant information from cvData
@@ -91,14 +113,77 @@ const toolbarOptions = [
 
 const steps = ['Personal', 'Education', 'Experience', 'Skills', 'Additional Info', 'Profile Summary'];
 
-function BuildCvPage({ user , theme}) {
+const parseCvData = (text) => {
+    // Simple parsing logic based on patterns; customize for your file format
+    const personalInfo = {
+        name: text.match(/Name:\s*(.*)/i)?.[1] || '',
+        email: text.match(/Email:\s*(.*)/i)?.[1] || '',
+        phone: text.match(/Phone:\s*(.*)/i)?.[1] || '',
+    };
+
+    const education = [
+        {
+            school: text.match(/School:\s*(.*)/i)?.[1] || '',
+            degree: text.match(/Degree:\s*(.*)/i)?.[1] || '',
+            graduationYear: text.match(/Graduation Year:\s*(.*)/i)?.[1] || '',
+            subjects: text.match(/Subjects:\s*(.*)/i)?.[1] || '',
+        }
+    ];
+
+    const workExperience = [
+        {
+            company: text.match(/Company:\s*(.*)/i)?.[1] || '',
+            position: text.match(/Position:\s*(.*)/i)?.[1] || '',
+            startDate: text.match(/Start Date:\s*(.*)/i)?.[1] || '',
+            endDate: text.match(/End Date:\s*(.*)/i)?.[1] || '',
+            description: text.match(/Description:\s*(.*)/i)?.[1] || '',
+        }
+    ];
+
+    // Additional sections (skills, certifications, etc.)
+    const skills = text.match(/Skills:\s*(.*)/i)?.[1]?.split(',') || [];
+    const certifications = text.match(/Certifications:\s*(.*)/i)?.[1]?.split(',') || [];
+    const projects = [{ name: text.match(/Project:\s*(.*)/i)?.[1] || '' }];
+    const languages = [{ language: text.match(/Language:\s*(.*)/i)?.[1] || '', proficiency: 'Intermediate' }];
+
+    return {
+        personalInfo,
+        education,
+        workExperience,
+        skills,
+        certifications,
+        projects,
+        languages,
+        hobbies: [],
+        profileSummary: text.match(/Summary:\s*(.*)/i)?.[1] || '',
+    };
+};
+
+const StyledPaper = styled(Paper)(({ theme }) => ({
+    padding: theme.spacing(4),
+    marginBottom: theme.spacing(4),
+    borderRadius: theme.shape.borderRadius * 2,
+    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+  }));
+  
+  const StyledButton = styled(Button)(({ theme }) => ({
+    borderRadius: theme.shape.borderRadius,
+    padding: theme.spacing(1.5, 3),
+    fontWeight: 600,
+    textTransform: 'none',
+  }));
+  
+  const AnimatedTextField = motion(TextField);
+  
+
+function BuildCvPage({ user, theme }) {
     const [activeStep, setActiveStep] = useState(0);
     const [cvData, setCvData] = useState({
         personalInfo: { name: '', email: '', phone: '' },
         education: [{ school: '', degree: '', graduationYear: '', subjects: '' }],
         workExperience: [{ company: '', position: '', startDate: '', endDate: '', description: '' }],
         skills: [''],
-        certifications: [],
+        certifications: [''],
         projects: [],
         languages: [{ language: '', proficiency: '' }],
         hobbies: [],
@@ -108,9 +193,11 @@ function BuildCvPage({ user , theme}) {
     const [isCvGenerated, setIsCvGenerated] = useState(false);
     const [validationErrors, setValidationErrors] = useState({});
     const [loading, setLoading] = useState(false);
-    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const [openDialog, setOpenDialog] = useState(false);
     const [resumeExists, setResumeExist] = useState(false);
-
+    const [file, setFile] = useState(null);
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const pdfRef = useRef(null);
 
     const saveCvData = async (userId) => {
         try {
@@ -121,6 +208,46 @@ function BuildCvPage({ user , theme}) {
             console.error("Error saving CV data:", error);
         }
     };
+
+    const handleFileUpload = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        setFile(file);
+        try {
+            let text = "";
+            if (file.type === "application/pdf") {
+                text = await extractTextFromPDF(file);
+                console.log(text);
+            } else if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+                text = await extractTextFromDOCX(file);
+                console.log(text);
+            } else {
+                throw new Error("Unsupported file type. Please upload a PDF or DOCX file.");
+            }
+    
+            const parsedData = parseCvData(text);  // Function to parse text into structured data
+            setCvData(parsedData);
+            console.log(parsedData)
+    
+        } catch (error) {
+            console.error("Error extracting CV data:", error);
+        }
+    };
+    const extractTextFromPDF = async (file) => {
+        try {
+            return await pdfToText(file);
+        } catch (error) {
+            throw new Error("Failed to extract text from PDF: " + error.message);
+        }
+    };
+    
+    // Extract text from DOCX using mammoth
+    const extractTextFromDOCX = async (file) => {
+        const arrayBuffer = await file.arrayBuffer();
+        const { value } = await mammoth.extractRawText({ arrayBuffer });
+        return value;
+    };
+    
     useEffect(() => {
         const fetchCvData = async () => {
             try {
@@ -155,14 +282,14 @@ function BuildCvPage({ user , theme}) {
     // Validation function for each step
     const validateStep = (step) => {
         const errors = {};
-    
+
         switch (step) {
             case 0: // Personal Info
                 if (!cvData.personalInfo.name) errors.name = "Full Name is required.";
                 if (!cvData.personalInfo.email) errors.email = "Email is required.";
                 if (!cvData.personalInfo.phone) errors.phone = "Phone number is required.";
                 break;
-    
+
             case 1: // Education
                 errors.education = cvData.education.map((edu, index) => {
                     const entryErrors = {};
@@ -171,12 +298,12 @@ function BuildCvPage({ user , theme}) {
                     if (!edu.graduationYear) entryErrors.graduationYear = "Graduation Year is required.";
                     return entryErrors;
                 });
-    
+
                 // Only keep entries that have at least one error
                 errors.education = errors.education.filter((e) => Object.keys(e).length > 0);
                 if (errors.education.length === 0) delete errors.education;
                 break;
-    
+
             case 2: // Work Experience
                 errors.workExperience = cvData.workExperience.map((exp) => {
                     const entryErrors = {};
@@ -185,19 +312,19 @@ function BuildCvPage({ user , theme}) {
                     if (!exp.startDate) entryErrors.startDate = "Start Date is required.";
                     return entryErrors;
                 });
-    
+
                 // Filter out any empty error objects
                 errors.workExperience = errors.workExperience.filter((e) => Object.keys(e).length > 0);
                 if (errors.workExperience.length === 0) delete errors.workExperience;
                 break;
-    
+
             default:
                 break;
         }
-    
+
         return errors;
     };
-    
+
 
     const handleBack = () => {
         setActiveStep((prevActiveStep) => prevActiveStep - 1);
@@ -220,7 +347,7 @@ function BuildCvPage({ user , theme}) {
                 return { ...prevData, [section]: value };
             }
         });
-    
+
         setValidationErrors((prevErrors) => {
             const newErrors = { ...prevErrors };
             if (newErrors[section]?.[index]?.[field]) {
@@ -229,7 +356,7 @@ function BuildCvPage({ user , theme}) {
             return newErrors;
         });
     };
-    
+
 
     const addListItem = (section) => {
 
@@ -240,12 +367,12 @@ function BuildCvPage({ user , theme}) {
                 section === 'projects'
                     ? { name: '', description: '', link: '' }
                     : section === 'languages'
-                    ? { language: '', proficiency: '' }
-                    : section === 'education'
-                    ? { school: '', degree: '', graduationYear: '', subjects: '' } // Initialize education fields
-                    :section === 'skills' || section === 'hobbies' ? '' 
-                    : {}
-                   
+                        ? { language: '', proficiency: '' }
+                        : section === 'education'
+                            ? { school: '', degree: '', graduationYear: '', subjects: '' } // Initialize education fields
+                            : section === 'skills' || section === 'hobbies' || section === 'certifications' ? ''
+                                : {}
+
             ]
         }));
         if (section === 'education') {
@@ -256,7 +383,7 @@ function BuildCvPage({ user , theme}) {
         }
 
     };
-    
+
 
     const removeListItem = (section, index) => {
         setCvData((prevData) => ({
@@ -268,12 +395,12 @@ function BuildCvPage({ user , theme}) {
     // Handle next step with validation
     const handleNext = async () => {
         const errors = validateStep(activeStep);
-    
+
         // If no errors, clear validationErrors and move to the next step
         if (Object.keys(errors).length === 0) {
             setValidationErrors({});
             setActiveStep((prevActiveStep) => prevActiveStep + 1);
-    
+
             if (activeStep === 4) { // Profile Summary step
                 await handleGenerateSummary();
             }
@@ -282,7 +409,7 @@ function BuildCvPage({ user , theme}) {
             setValidationErrors(errors);
         }
     };
-    
+
     const handleGenerateSummary = async () => {
         try {
             setLoading(true);
@@ -307,7 +434,7 @@ function BuildCvPage({ user , theme}) {
                         profileSummary: "Professional with experience in various fields."
                     }));
                 }
-                
+
             } else {
                 console.log("Profile Summary already exists, skipping AI generation.");
             }
@@ -363,43 +490,52 @@ function BuildCvPage({ user , theme}) {
                 return (
                     <Box>
                         <Typography variant="h6" gutterBottom>
-                            Personal Information
+                        Personal Information
                         </Typography>
-                        <Grid container spacing={2}>
-                            <Grid item xs={12}>
-                                <TextField
-                                    required
-                                    fullWidth
-                                    label="Full Name"
-                                    value={cvData.personalInfo.name}
-                                    onChange={(e) => handleInputChange('personalInfo', 'name', e.target.value)}
-                                    error={!!validationErrors.name}
-                                    helperText={validationErrors.name}
-                                />
-                            </Grid>
-                            <Grid item xs={12}>
-                                <TextField
-                                    required
-                                    fullWidth
-                                    label="Email"
-                                    type="email"
-                                    value={cvData.personalInfo.email}
-                                    onChange={(e) => handleInputChange('personalInfo', 'email', e.target.value)}
-                                    error={!!validationErrors.email}
-                                    helperText={validationErrors.email}
-                                />
-                            </Grid>
-                            <Grid item xs={12}>
-                                <TextField
-                                    required
-                                    fullWidth
-                                    label="Phone"
-                                    value={cvData.personalInfo.phone}
-                                    onChange={(e) => handleInputChange('personalInfo', 'phone', e.target.value)}
-                                    error={!!validationErrors.phone}
-                                    helperText={validationErrors.phone}
-                                />
-                            </Grid>
+                        <Grid container spacing={3}>
+                        <Grid item xs={12}>
+                            <AnimatedTextField
+                            required
+                            fullWidth
+                            label="Full Name"
+                            value={cvData.personalInfo.name}
+                            onChange={(e) => handleInputChange('personalInfo', 'name', e.target.value)}
+                            error={!!validationErrors.name}
+                            helperText={validationErrors.name}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5 }}
+                            />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <AnimatedTextField
+                            required
+                            fullWidth
+                            label="Email"
+                            type="email"
+                            value={cvData.personalInfo.email}
+                            onChange={(e) => handleInputChange('personalInfo', 'email', e.target.value)}
+                            error={!!validationErrors.email}
+                            helperText={validationErrors.email}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5, delay: 0.1 }}
+                            />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <AnimatedTextField
+                            required
+                            fullWidth
+                            label="Phone"
+                            value={cvData.personalInfo.phone}
+                            onChange={(e) => handleInputChange('personalInfo', 'phone', e.target.value)}
+                            error={!!validationErrors.phone}
+                            helperText={validationErrors.phone}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5, delay: 0.2 }}
+                            />
+                        </Grid>
                         </Grid>
                     </Box>
 
@@ -413,7 +549,7 @@ function BuildCvPage({ user , theme}) {
                         {cvData.education.map((edu, index) => (
                             <Grid container spacing={2} key={index} sx={{ mb: 2 }}>
                                 <Grid item xs={12}>
-                                    <TextField
+                                    <AnimatePresence
                                         required
                                         fullWidth
                                         label="School/University"
@@ -421,10 +557,13 @@ function BuildCvPage({ user , theme}) {
                                         onChange={(e) => handleInputChange('education', 'school', e.target.value, index)}
                                         error={!!validationErrors.education?.[index]?.school}
                                         helperText={validationErrors.education?.[index]?.school}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
                                     />
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField
+                                    <AnimatedTextField
                                         required
                                         fullWidth
                                         label="Degree"
@@ -432,10 +571,13 @@ function BuildCvPage({ user , theme}) {
                                         onChange={(e) => handleInputChange('education', 'degree', e.target.value, index)}
                                         error={!!validationErrors.education?.[index]?.degree}
                                         helperText={validationErrors.education?.[index]?.degree}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
                                     />
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField
+                                    <AnimatedTextField
                                         required
                                         fullWidth
                                         type="number"
@@ -444,6 +586,9 @@ function BuildCvPage({ user , theme}) {
                                         onChange={(e) => handleInputChange('education', 'graduationYear', e.target.value, index)}
                                         error={!!validationErrors.education?.[index]?.graduationYear}
                                         helperText={validationErrors.education?.[index]?.graduationYear}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
                                     />
 
                                 </Grid>
@@ -478,7 +623,7 @@ function BuildCvPage({ user , theme}) {
                         {cvData.workExperience.map((exp, index) => (
                             <Grid container spacing={2} key={index} sx={{ mb: 2 }}>
                                 <Grid item xs={12}>
-                                    <TextField
+                                    <AnimatedTextField
                                         required
                                         fullWidth
                                         label="Company"
@@ -486,10 +631,13 @@ function BuildCvPage({ user , theme}) {
                                         onChange={(e) => handleInputChange('workExperience', 'company', e.target.value, index)}
                                         error={!!validationErrors.workExperience?.[index]?.company}
                                         helperText={validationErrors.workExperience?.[index]?.company}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
                                     />
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField
+                                    <AnimatedTextField
                                         required
                                         fullWidth
                                         label="Position"
@@ -497,10 +645,13 @@ function BuildCvPage({ user , theme}) {
                                         onChange={(e) => handleInputChange('workExperience', 'position', e.target.value, index)}
                                         error={!!validationErrors.workExperience?.[index]?.position}
                                         helperText={validationErrors.workExperience?.[index]?.position}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
                                     />
                                 </Grid>
                                 <Grid item xs={12} sm={6}>
-                                    <TextField
+                                    <AnimatedTextField
                                         required
                                         type="date"
                                         fullWidth
@@ -512,11 +663,19 @@ function BuildCvPage({ user , theme}) {
                                         InputLabelProps={{
                                             shrink: true, // Ensures the label does not overlap
                                         }}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
                                         placeholder="DD/MM/YYYY" // Placeholder to indicate the format
+                                        sx={{
+                                            '& input[type="date"]::-webkit-calendar-picker-indicator': {
+                                                filter: theme.palette.mode === 'dark' ? 'invert(1)' : 'none',
+                                            },
+                                        }}
                                     />
                                 </Grid>
                                 <Grid item xs={12} sm={6}>
-                                    <TextField
+                                    <AnimatedTextField
                                         type="date"
                                         fullWidth
                                         label="End Date"
@@ -525,7 +684,15 @@ function BuildCvPage({ user , theme}) {
                                         InputLabelProps={{
                                             shrink: true, // Ensures the label does not overlap
                                         }}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
                                         placeholder="DD/MM/YYYY" // Placeholder to indicate the format
+                                        sx={{
+                                            '& input[type="date"]::-webkit-calendar-picker-indicator': {
+                                                filter: theme.palette.mode === 'dark' ? 'invert(1)' : 'none',
+                                            },
+                                        }}
                                     />
                                 </Grid>
                                 <Grid item xs={12}>
@@ -561,29 +728,32 @@ function BuildCvPage({ user , theme}) {
                             Skills
                         </Typography>
                         {cvData.skills.map((skill, index) => (
-                                <Grid container spacing={2} key={index} sx={{ mb: 2 }}>
-                                    <Grid item xs={11}> 
-                                        <TextField
-                                            required
-                                            fullWidth
-                                            label={`Skill ${index + 1}`}
-                                            value={skill} // If it's an object, use `name` (or the appropriate field), otherwise use the skill itself
-                                            onChange={(e) => handleInputChange('skills', 'name', e.target.value, index)} // Set the field to 'name'
-                                        />
-                                    </Grid>
-                                    {index > 0 && ( // Show the remove button only if it's not the first skill
-                                        <Grid item xs={1}> 
-                                            <IconButton
-                                                onClick={() => removeListItem('skills', index)}
-                                                sx={{ color: 'red' }}
-                                                aria-label="remove skill" 
-                                            >
-                                                <DeleteIcon /> 
-                                            </IconButton>
-                                        </Grid>
-                                    )}
+                            <Grid container spacing={2} key={index} sx={{ mb: 2 }}>
+                                <Grid item xs={11}>
+                                    <AnimatedTextField
+                                        required
+                                        fullWidth
+                                        label={`Skill ${index + 1}`}
+                                        value={skill} // If it's an object, use `name` (or the appropriate field), otherwise use the skill itself
+                                        onChange={(e) => handleInputChange('skills', 'name', e.target.value, index)} // Set the field to 'name'
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
+                                    />
                                 </Grid>
-                            ))}
+                                {index > 0 && ( // Show the remove button only if it's not the first skill
+                                    <Grid item xs={1}>
+                                        <IconButton
+                                            onClick={() => removeListItem('skills', index)}
+                                            sx={{ color: 'red' }}
+                                            aria-label="remove skill"
+                                        >
+                                            <DeleteIcon />
+                                        </IconButton>
+                                    </Grid>
+                                )}
+                            </Grid>
+                        ))}
                         <Button onClick={() => addListItem('skills')} variant="outlined" fullWidth size='sm'>
                             Add Skill
                         </Button>
@@ -601,11 +771,14 @@ function BuildCvPage({ user , theme}) {
                         {cvData.certifications.map((cert, index) => (
                             <Grid container spacing={2} key={index} sx={{ mb: 2 }}>
                                 <Grid item xs={12}>
-                                    <TextField
+                                    <AnimatedTextField
                                         fullWidth
                                         label={`Certification ${index + 1}`}
                                         value={cert}
                                         onChange={(e) => handleInputChange('certifications', null, e.target.value, index)}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
                                     />
                                 </Grid>
                                 {index > 0 && (
@@ -630,29 +803,38 @@ function BuildCvPage({ user , theme}) {
                         {cvData.projects.map((project, index) => (
                             <Grid container spacing={2} key={index} sx={{ mb: 2 }}>
                                 <Grid item xs={12}>
-                                    <TextField
+                                    <AnimatedTextField
                                         fullWidth
                                         label="Project Name"
                                         value={project.name}
                                         onChange={(e) => handleInputChange('projects', 'name', e.target.value, index)}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
                                     />
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField
+                                    <AnimatedTextField
                                         fullWidth
                                         multiline
                                         rows={2}
                                         label="Project Description"
                                         value={project.description}
                                         onChange={(e) => handleInputChange('projects', 'description', e.target.value, index)}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
                                     />
                                 </Grid>
                                 <Grid item xs={12}>
-                                    <TextField
+                                    <AnimatedTextField
                                         fullWidth
                                         label="Project Link"
                                         value={project.link}
                                         onChange={(e) => handleInputChange('projects', 'link', e.target.value, index)}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
                                     />
                                 </Grid>
                                 {index > 0 && (
@@ -674,11 +856,14 @@ function BuildCvPage({ user , theme}) {
                         {cvData.languages.map((lang, index) => (
                             <Grid container spacing={2} key={index} sx={{ mb: 2 }}>
                                 <Grid item xs={12} sm={6}>
-                                    <TextField
+                                    <AnimatedTextField
                                         fullWidth
                                         label="Language"
                                         value={lang.language}
                                         onChange={(e) => handleInputChange('languages', 'language', e.target.value, index)}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
                                     />
                                 </Grid>
                                 <Grid item xs={12} sm={6}>
@@ -715,11 +900,14 @@ function BuildCvPage({ user , theme}) {
                         {cvData.hobbies.map((hobby, index) => (
                             <Grid container spacing={2} key={index} sx={{ mb: 2 }}>
                                 <Grid item xs={12}>
-                                    <TextField
+                                    <AnimatedTextField
                                         fullWidth
                                         label={`Hobby/Interest ${index + 1}`}
                                         value={hobby}
                                         onChange={(e) => handleInputChange('hobbies', null, e.target.value, index)}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
                                     />
                                 </Grid>
                                 {index > 0 && (
@@ -759,21 +947,21 @@ function BuildCvPage({ user , theme}) {
                             Review Your Profile Summary
                         </Typography>
                         {loading ? (
-                                <Box
-                                    sx={{
-                                        display: 'flex',
-                                        justifyContent: 'center', // Center horizontally
-                                        alignItems: 'center',     // Center vertically
-                                        height: '100%',           // Full height of the container
-                                        mt: 2                      // Optional margin for spacing
-                                    }}
-                                >
-                                    <CircularProgress/>
-                                    <Typography>Generating summary, please wait...</Typography>
-                                </Box>
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    justifyContent: 'center', // Center horizontally
+                                    alignItems: 'center',     // Center vertically
+                                    height: '100%',           // Full height of the container
+                                    mt: 2                      // Optional margin for spacing
+                                }}
+                            >
+                                <CircularProgress />
+                                <Typography>Generating summary, please wait...</Typography>
+                            </Box>
                         ) : (
-                            <TextField
-                                sx={{mt:2}}
+                            <AnimatedTextField
+                                sx={{ mt: 2 }}
                                 fullWidth
                                 multiline
                                 rows={10}
@@ -783,6 +971,9 @@ function BuildCvPage({ user , theme}) {
                                     ...prevData,
                                     profileSummary: e.target.value
                                 }))}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.5, delay: 0.2 }}
                             />
                         )}
                         <Button
@@ -801,192 +992,155 @@ function BuildCvPage({ user , theme}) {
         }
     };
 
-    const renderCv = () => (
-        <Paper elevation={0} sx={{ p: 4, mt: 4 }}>
-            <Typography variant="h4" gutterBottom>
-                {cvData.personalInfo.name}
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-                Email: {cvData.personalInfo.email}
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-                Phone: {cvData.personalInfo.phone}
-            </Typography>
+
+    const handleDownloadPDF = () => {
+        const doc = new jsPDF({
+            format: 'a4',
+            unit: 'px',
+            orientation: 'portrait', // Default orientation for A4
+        });
     
-            {cvData.profileSummary && (
-                <Box>
-                    <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                        Profile Summary
-                    </Typography>
-                    <Typography variant="body1" sx={{ textAlign: 'justify' }}>
-                        {cvData.profileSummary}
-                    </Typography>
-                </Box>
-            )}
+        // Set font and prepare for content
+        doc.setFont('helvetica', 'normal');
     
-            <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                Education
-            </Typography>
-            {cvData.education.map((edu, index) => (
-                <Box key={index}>
-                    <Typography variant="h5" component="span" sx={{ mr: 1 }}>
-                        {edu.degree}
-                    </Typography>
-                    <Typography variant="body1" component="span">
-                        from {edu.school} ({edu.graduationYear})
-                    </Typography>
-                    {/* Make sure that edu.subjects is a string before rendering */}
-                    <Typography variant="body2">
-                        {typeof edu.subjects === 'string' ? edu.subjects : ''}
-                    </Typography>
-                </Box>
-            ))}
+        // Capture the width of the document and set scaling
+        const contentWidth = pdfRef.current.scrollWidth;
+        const pdfWidth = doc.internal.pageSize.getWidth();
+
     
-            <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                Work Experience
-            </Typography>
-            {cvData.workExperience?.map((exp, index) => (
-                <Box key={index}>
-                    <Typography variant="h5" component="span" sx={{ mr: 1 }}>
-                        {exp.position}
-                    </Typography>
-                    <Typography variant="body1" component="span" sx={{ mr: 1 }}>
-                        at {exp.company}
-                    </Typography>
-                    <Typography variant="body2" component="span" color="textSecondary">
-                        (
-                        {new Date(exp.startDate).toLocaleDateString('en-GB', {
-                            month: 'short',
-                            year: 'numeric'
-                        })}
-                        -
-                        {exp.endDate
-                            ? new Date(exp.endDate).toLocaleDateString('en-GB', {
-                                month: 'short',
-                                year: 'numeric'
-                            })
-                            : 'Present'}
-                        )
-                    </Typography>
+        // Use doc.html with scaling for full-width fit
+        doc.html(pdfRef.current, {
+            callback: (pdf) => {
+                pdf.save(`${cvData.personalInfo.name}_CV.pdf`);
+            },
+            x: 10, // Left margin
+            y: 10, // Top margin
+            width: pdfWidth - 20, // Fit content within margins
+            windowWidth: contentWidth, // Ensure full width is captured
+            html2canvas: {
+                scale: 0.5, // Adjust scale for better quality or performance
+                margin: { top: 10, bottom: 10, left: 10, right: 10 }, // Apply margins to every page
+                scrollX: 0,
+                scrollY: 0,
+            },
+            autoPaging: 'text', // Automatically handle paging
+        });
+    };
     
-                    {/* Ensure description is a string */}
-                    <Typography variant="body2">
-                        {typeof exp.description === 'string' ? exp.description : ''}
-                    </Typography>
-                </Box>
-            ))}
+
+    const handleDownloadDocx = () => {
+        // Get the HTML content from your reference (e.g., pdfRef.current.innerHTML)
+        const content = pdfRef.current.innerHTML; // Ensure this is valid HTML content
     
-            <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                Skills
-            </Typography>
-            <ul>
-                {cvData.skills.map((skill, index) => (
-                    <li key={index}>{typeof skill === 'string' ? skill : ''}</li>
-                ))}
-            </ul>
+        // Convert the HTML content to a DOCX file
+        const converted = htmlDocx.asBlob(content);
     
-            {cvData.certifications?.length > 0 && (
-                <>
-                    <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                        Certifications
-                    </Typography>
-                    <ul>
-                        {cvData.certifications.map((cert, index) => (
-                            <li key={index}>{typeof cert === 'string' ? cert : ''}</li>
-                        ))}
-                    </ul>
-                </>
-            )}
-    
-            {cvData.projects?.length > 0 && (
-                <>
-                    <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                        Projects
-                    </Typography>
-                    {cvData.projects.map((project, index) => (
-                        <Box key={index}>
-                            <Typography variant="body1">{project.name}</Typography>
-                            <Typography variant="body2">{project.description}</Typography>
-                            {project.link && (
-                                <Typography variant="body2">
-                                    Link: <a href={project.link} target="_blank" rel="noopener noreferrer">{project.link}</a>
-                                </Typography>
-                            )}
-                        </Box>
-                    ))}
-                </>
-            )}
-    
-            {cvData.languages?.length > 0 && (
-                <>
-                    <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                        Languages
-                    </Typography>
-                    <ul>
-                        {cvData.languages.map((lang, index) => (
-                            <li key={index}>{`${lang.language} - ${lang.proficiency}`}</li>
-                        ))}
-                    </ul>
-                </>
-            )}
-    
-            {cvData.hobbies.length > 0 && (
-                <>
-                    <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                        Hobbies and Interests
-                    </Typography>
-                    <ul>
-                        {cvData.hobbies.map((hobby, index) => (
-                            <li key={index}>{hobby}</li>
-                        ))}
-                    </ul>
-                </>
-            )}
-    
-            {cvData.references.available && (
-                <Typography variant="body1" sx={{ mt: 2 }}>
-                    References available upon request.
-                </Typography>
-            )}
-        </Paper>
-    );
-    
+        // Create a link element to trigger the download
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(converted);
+        link.download = `${cvData.personalInfo.name}_CV.docx`;
+        link.click();
+    };
+
+
     return (
-            <Container maxWidth="md" sx={{ mb: 4 }}>
-                <Box marginTop={2}>
-                <TipsSlider />
+        <Container maxWidth="md">
+        <Box marginTop={4} marginBottom={4}>
+          <TipsSlider />
+        </Box>
+        <StyledPaper>
+          <Typography variant="h4" align="center" gutterBottom>
+            Build Your Professional CV
+          </Typography>
+          <Box display="flex" justifyContent="center" mt={3} mb={4}>
+            <StyledButton
+              color="primary"
+              variant="outlined"
+              startIcon={<CloudUploadIcon />}
+              onClick={() => document.getElementById('resume-upload').click()}
+            >
+              Extract From Existing CV
+            </StyledButton>
+            <Typography variant="caption" sx={{ ml: 2, alignSelf: 'center' }}>
+              {file ? file.name : 'No file chosen'}
+            </Typography>
+            <input
+              id="resume-upload"
+              type="file"
+              hidden
+              accept=".pdf, .docx"
+              onChange={(e) => handleFileUpload(e, setFile, setCvData, setValidationErrors)}
+            />
+          </Box>
+          <Stepper activeStep={activeStep} alternativeLabel={!isMobile} orientation={isMobile ? "vertical" : "horizontal"} sx={{ mb: 4 }}>
+            {steps.map((label) => (
+              <Step key={label}>
+                <StepLabel>{label}</StepLabel>
+              </Step>
+            ))}
+          </Stepper>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeStep}
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              transition={{ duration: 0.3 }}
+            >
+              {!loading && isCvGenerated ? (
+                <Box>
+                  <div ref={pdfRef}>
+                    <RenderCv cvData={cvData} />
+                  </div>
+                  <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center', gap: 2 }}>
+                    <StyledButton variant="contained" onClick={handleDownloadPDF} startIcon={<DownloadIcon />}>
+                      Download PDF
+                    </StyledButton>
+                    <StyledButton variant="contained" onClick={handleDownloadDocx} startIcon={<DownloadIcon />}>
+                      Download DOCX
+                    </StyledButton>
+                  </Box>
                 </Box>
-                <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 }, mt: 4 }}>
-                    <Typography variant="h4" align="center" gutterBottom>
-                        Build Your CV
-                    </Typography>
-                    <Stepper activeStep={activeStep} sx={{ mb: 4 }} orientation={isMobile ? "vertical" : "horizontal"}>
-                        {steps.map((label) => (
-                            <Step key={label}>
-                                <StepLabel>{label}</StepLabel>
-                            </Step>
-                        ))}
-                    </Stepper>
-                    {!loading && isCvGenerated ? renderCv() : renderStepContent(activeStep)}
-                    {!isCvGenerated && (
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
-                            <Button onClick={handleBack} sx={{ mr: 1 }} disabled={activeStep === 0}>
-                                Back
-                            </Button>
-                            <Button
-                                disabled={loading}
-                                variant="contained"
-                                color="primary"
-                                onClick={activeStep === steps.length - 1 ? handleGenerateCv : handleNext}
-                            >
-                                {activeStep === steps.length - 1
-                                    ? (resumeExists ? 'Update CV' : 'Generate CV')
-                                    : 'Next'}
-                            </Button>
-                        </Box>
-                    )}
-                </Paper>
-            </Container>
+              ) : (
+                renderStepContent(activeStep)
+              )}
+            </motion.div>
+          </AnimatePresence>
+          {!isCvGenerated && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+              <StyledButton onClick={handleBack} disabled={activeStep === 0}>
+                Back
+              </StyledButton>
+              <StyledButton
+                variant="contained"
+                color="primary"
+                onClick={activeStep === steps.length - 1 ? handleGenerateCv : handleNext}
+                disabled={loading}
+              >
+                {activeStep === steps.length - 1 ? 'Generate CV' : 'Next'}
+              </StyledButton>
+            </Box>
+          )}
+        </StyledPaper>
+        <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
+          <DialogTitle>{"Daily Limit Reached"}</DialogTitle>
+          <DialogContent>
+            <Typography>
+              You have reached the daily limit of free uses. Upgrade to pro for unlimited access.
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+            <StyledButton
+              onClick={() => { window.location.href = "/upgrade"; }}
+              color="primary"
+              variant="contained"
+            >
+              Upgrade to Pro
+            </StyledButton>
+          </DialogActions>
+        </Dialog>
+      </Container>
     );
 }
 

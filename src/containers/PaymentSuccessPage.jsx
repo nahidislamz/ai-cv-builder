@@ -64,7 +64,7 @@ function PaymentSuccessPage({ user }) {
   };
 
   const handleDownloadInvoice = () => {
-    if (invoice && invoice.download) {
+    if (invoice && invoice.pdfUrl) {
       // If download is true, redirect to the PDF URL for download
       window.location.href = invoice.pdfUrl;
     } else {
@@ -94,6 +94,27 @@ function PaymentSuccessPage({ user }) {
             <Typography variant="body1" align="center" sx={{ mb: 4 }}>
               Your subscription is now active. You can start using all the premium features of NexaAI.
             </Typography>
+
+            {invoice && (
+              <Box sx={{ mt: 4, width: '100%' }}>
+                <Typography variant="h5" gutterBottom>
+                  Invoice Details
+                </Typography>
+                <Typography><strong>Invoice ID:</strong> {invoice.invoice.id.toUpperCase()}</Typography>
+                <Typography><strong>Amount Due:</strong> £ {invoice.invoice.amount_due / 100} {invoice.currency}</Typography>
+                <Typography><strong>Status:</strong> {invoice.invoice.status}</Typography>
+                <Typography><strong>Date:</strong> {new Date(invoice.invoice.created * 1000).toLocaleDateString()}</Typography>
+                <Typography>
+                  <strong>Description:</strong> 
+                  {invoice.invoice.description ? invoice.invoice.description : 'No description available.'}
+                </Typography>
+                <Typography>
+                  <strong>Customer Email:</strong> 
+                  {invoice.invoice.customer_email || 'No email available.'}
+                </Typography>
+              </Box>
+            )}
+
             <Button
               variant="contained"
               color="primary"
@@ -113,21 +134,6 @@ function PaymentSuccessPage({ user }) {
               Download Invoice PDF
             </Button>
 
-            {/* Display invoice details */}
-
-            {invoice && (
-              <Box sx={{ mt: 4, width: '100%' }}>
-                <Typography variant="h5" gutterBottom>
-                  Invoice Details
-                </Typography>
-                <Typography><strong>Invoice ID:</strong> {invoiceId}</Typography>
-                <Typography><strong>Amount Due:</strong> {invoice.amount_due / 100} {invoice.currency}</Typography>
-                <Typography><strong>Status:</strong> {invoice.status}</Typography>
-                <Typography><strong>Date:</strong> {new Date(invoice.created * 1000).toLocaleDateString()}</Typography>
-                <Typography><strong>Description:</strong> {invoice.description || 'No description available.'}</Typography>
-                <Typography><strong>Customer Email:</strong> {invoice.customer_email || 'No email available.'}</Typography>
-              </Box>
-            )}
           </Box>
         </Paper>
       </Container>

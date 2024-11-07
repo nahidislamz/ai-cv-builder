@@ -1,5 +1,31 @@
 import React, { useState, useEffect, useCallback  } from "react";
-import { Link, Button, Card, CardContent, CardHeader, CardActions, TextField, Alert, AlertTitle, Typography, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Container } from "@mui/material";
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardActions,
+  TextField,
+  Alert,
+  AlertTitle,
+  Typography,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Container,
+  Chip,
+  Checkbox,
+  FormControlLabel,
+  Paper,
+  Stepper,
+  Step,
+  StepLabel,
+  useTheme,
+  useMediaQuery,
+} from "@mui/material";
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import SendIcon from '@mui/icons-material/Send';
 import ErrorIcon from '@mui/icons-material/Error';
@@ -11,12 +37,14 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { firestore } from '../firebase';
 import { Warning } from "@mui/icons-material";
 import { Link as RouterLink } from 'react-router-dom';
-import { Chip, createTheme, ThemeProvider } from '@mui/material';
+import { createTheme, ThemeProvider } from '@mui/material';
 import StarIcon from '@mui/icons-material/Star';
 import PersonIcon from '@mui/icons-material/Person';
+import { styled } from "@mui/material/styles";
+
 // API KEY
 const groq = new Groq({ apiKey: process.env.REACT_APP_GROQ_API_KEY, dangerouslyAllowBrowser: true });
-
+const steps = ['Upload Resume', 'Enter Job Description', 'View Results'];
 const MAX_FREE_USES_PER_DAY = 3;
 const theme = createTheme({
   palette: {
@@ -28,7 +56,18 @@ const theme = createTheme({
     },
   },
 });
+const StyledCard = styled(Card)(({ theme }) => ({
+  borderRadius: theme.shape.borderRadius * 2,
+  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+  overflow: 'hidden',
+}));
 
+const StyledButton = styled(Button)(({ theme }) => ({
+  borderRadius: theme.shape.borderRadius,
+  padding: theme.spacing(1.5, 3),
+  fontWeight: 600,
+  textTransform: 'none',
+}));
 const FreeUserBadge = () => {
   return (
     <ThemeProvider theme={theme}>
@@ -65,11 +104,15 @@ const OptimizeCvPage = ({ user }) => {
   const [error, setError] = useState(null);
   const [results, setResults] = useState(null);
   const [remainingUses, setRemainingUses] = useState(MAX_FREE_USES_PER_DAY);
-
+  const [generateCoverLetter, setGenerateCoverLetter] = useState(false);
   // State for controlling the dialog popup
   const [openDialog, setOpenDialog] = useState(false);
   const [isFreeUser, setIsFreeUser] = useState(false);
   const [isPremiumUser, setIsPremiumUser] = useState(false);
+  const [activeStep, setActiveStep] = useState(0);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // Check daily usage from localStorage
 
@@ -178,13 +221,23 @@ const OptimizeCvPage = ({ user }) => {
 
   // Send the resume and job description to Groq for analysis
   const getGroqChatCompletion = async (resume, jobDescription) => {
+
+    const coverLetterPrompt = generateCoverLetter
+    ? "Generate a cover letter tailored to the job description based on my resume. Ensure that it is concise and relevant to the position."
+    : "";
     return groq.chat.completions.create({
       model: "llama-3.1-70b-versatile",
       messages: [
         {
           role: "user",
           content: "I need help optimizing my resume for a specific job application. Here is my current resume:" + resume + " and here is the job description: " + jobDescription +
-            " Analyse if the resume matches with the job description. If the resume does not match with the job description do not make any resume. If the resume aligns with the job description do the following: Prioritize highlighting relevant skills, projects, and achievements that align with the job description. Additionally, pinpoint key terms from the job description that can be integrated into my resume and are similar to my existing skills. Avoid removing or adding skills that are not already present. Based on this, generate an updated resume tailored to the job description. no need to provide suggestions just generate update cv based on your analysis. create cv using markdown"
+            ` Analyse if the resume matches with the job description. If the resume does not match with the job description do not make any resume. 
+            If the resume aligns with the job description do the following: Prioritize highlighting relevant skills, projects, and achievements that align with the job description.
+             Additionally, pinpoint key terms from the job description that can be integrated into my resume and are similar to my existing skills. 
+             Avoid removing or adding skills that are not already present. Based on this, generate an updated resume tailored to the job description. 
+             no need to provide suggestions just generate update cv based on your analysis. create cv using markdown 
+              ${coverLetterPrompt}
+             `
         }
       ],
       temperature: 1,
@@ -218,128 +271,155 @@ const OptimizeCvPage = ({ user }) => {
       const resultText = chatCompletion.choices[0]?.message?.content || "No results from model.";
       setResults(resultText);
 
-      await incrementUsageCount(userDocRef);
+      if (isFreeUser) {
+        await incrementUsageCount(userDocRef);
+      }
+      setActiveStep(2);
     } catch (err) {
       setError(`Error analyzing resume: ${err.message}`);
     } finally {
       setIsLoading(false);
+      setActiveStep(2);
     }
   };
   // Check user plan and show popup
   return (
     <>
-      <Container sx={{ my: 4 }}>
-        <div>
-          {isFreeUser ? <FreeUserBadge />
-            : isPremiumUser ? <PremiumUserBadge /> : null}
-        </div>
-        {
-          isFreeUser && (
-            <Alert severity="warning" style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }} icon={<Warning />}>
-              <AlertTitle>Upgrade to Pro</AlertTitle>
-              {/* Use Link for internal routing or an anchor tag for external link */}
-              <Typography variant="body2">
-                You are currently on the free plan. you have {remainingUses} uses. To enjoy unlimited access and premium features, please{'  '}
-                <Link to="/upgrade" component={RouterLink} color="primary" underline="hover">
-                  upgrade to Pro
-                </Link>
-                .
-              </Typography>
-            </Alert>
-          )
-        }
-        <Card>
-          <CardHeader
-            title={<Typography variant="h6">Resume Optimizer</Typography>}
-            subheader={<Typography variant="body2">Upload your resume and enter a job description to get personalized optimization suggestions.</Typography>}
-          />
-          <CardContent>
-            <div style={{ marginBottom: '1rem' }}>
-              <Typography variant="body1" gutterBottom>Upload Resume (PDF or DOCX)</Typography>
-              <Button
-                color="primary"
-                variant="contained"
-                startIcon={<UploadFileIcon />}
-                onClick={() => document.getElementById('resume-upload').click()}
-              >
-                Choose File
-              </Button>
-              <Typography variant="caption" style={{ marginLeft: '1rem' }}>{file ? file.name : 'No file chosen'}</Typography>
-              <input
-                id="resume-upload"
-                type="file"
-                accept=".pdf,.docx"
-                onChange={handleFileUpload}
-                style={{ display: 'none' }}
-              />
-            </div>
-            {error && (
-              <Alert severity="error" style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }} icon={<ErrorIcon />}>
-                <AlertTitle>Error</AlertTitle>
-                {error}
-              </Alert>
-            )}
-            <div style={{ marginBottom: '1rem' }}>
-              <TextField
-                id="job-description"
-                label="Job Description"
-                placeholder="Enter the job description here..."
-                value={jobDescription}
-                onChange={(e) => setJobDescription(e.target.value)}
-                multiline
-                rows={5}
-                fullWidth
-                variant="outlined"
-              />
-            </div>
-          </CardContent>
-          <CardActions>
-            <Button
-              onClick={handleAnalyze}
-              disabled={isLoading || !fileContent}
-              variant="contained"
-              color="primary"
-              fullWidth
-              startIcon={isLoading ? <CircularProgress size={24} /> : <SendIcon />}
-            >
-              {isLoading ? "Analyzing..." : "Analyze Resume"}
-            </Button>
-          </CardActions>
-        </Card>
+          <Container maxWidth="md" sx={{ py: 4 }}>
+      <Typography variant="h4" component="h1" gutterBottom align="center" fontWeight="bold">
+        AI-Powered Resume Optimizer
+      </Typography>
+      <Typography variant="subtitle1" gutterBottom align="center" color="text.secondary">
+        Enhance your resume with our advanced AI technology
+      </Typography>
 
-        {results && (
-          <Card style={{ marginTop: '1rem' }}>
-            <CardHeader
-              title={<Typography variant="h6">Optimization Suggestions</Typography>}
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'center' }}>
+        {isFreeUser ? <FreeUserBadge /> : isPremiumUser ? <PremiumUserBadge /> : null}
+      </Box>
+
+      {isFreeUser && (
+        <Alert severity="warning" sx={{ mb: 3 }} icon={<Warning />}>
+          <AlertTitle>Upgrade to Pro</AlertTitle>
+          <Typography variant="body2">
+            You have {remainingUses} free uses left. For unlimited access and premium features,{' '}
+            <RouterLink to="/upgrade" style={{ color: theme.palette.primary.main, textDecoration: 'none' }}>
+              upgrade to Pro
+            </RouterLink>
+            .
+          </Typography>
+        </Alert>
+      )}
+
+      <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 4 }}>
+        {steps.map((label) => (
+          <Step key={label}>
+            <StepLabel>{label}</StepLabel>
+          </Step>
+        ))}
+      </Stepper>
+
+      <StyledCard>
+        <CardContent>
+          <Box sx={{ mb: 3 }}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={generateCoverLetter}
+                  onChange={(e) => setGenerateCoverLetter(e.target.checked)}
+                  disabled={isFreeUser}
+                />
+              }
+              label="Generate Cover Letter"
             />
-            <CardContent>
-              <ReactMarkdown>
-                {results}
-              </ReactMarkdown>
-            </CardContent>
-          </Card>
-        )}
+            {isFreeUser && (
+              <Typography variant="caption" color="text.secondary" display="block">
+                Upgrade to Pro to generate a cover letter.
+              </Typography>
+            )}
+          </Box>
 
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>Upload Resume (PDF or DOCX)</Typography>
+            <StyledButton
+              color="primary"
+              variant="outlined"
+              startIcon={<UploadFileIcon />}
+              onClick={() => document.getElementById('resume-upload').click()}
+              fullWidth={isMobile}
+            >
+              Choose File
+            </StyledButton>
+            <Typography variant="caption" sx={{ ml: 2 }}>{file ? file.name : 'No file chosen'}</Typography>
+            <input
+              id="resume-upload"
+              type="file"
+              accept=".pdf,.docx"
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
+            />
+          </Box>
 
-        {/* Dialog for daily limit reached */}
-        <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
-          <DialogTitle>{"Daily Limit Reached"}</DialogTitle>
-          <DialogContent>
-            <Typography>You have reached the daily limit of free uses. Upgrade to pro for unlimited access.</Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenDialog(false)} color="primary" variant="outlined">
-              Cancel
-            </Button>
-            <Button onClick={() => {
-              // Handle the upgrade action here
-              window.location.href = "/upgrade";  // Example: redirect to upgrade page
-            }} color="primary" variant="contained">
-              Upgrade to Pro
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </Container>
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }} icon={<ErrorIcon />}>
+              <AlertTitle>Error</AlertTitle>
+              {error}
+            </Alert>
+          )}
+
+          <TextField
+            id="job-description"
+            label="Job Description"
+            placeholder="Enter the job description here..."
+            value={jobDescription}
+            onChange={(e) => setJobDescription(e.target.value)}
+            multiline
+            rows={5}
+            fullWidth
+            variant="outlined"
+            sx={{ mb: 3 }}
+          />
+
+          <StyledButton
+            onClick={handleAnalyze}
+            disabled={isLoading || !fileContent}
+            variant="contained"
+            color="primary"
+            fullWidth
+            startIcon={isLoading ? <CircularProgress size={24} /> : <SendIcon />}
+          >
+            {isLoading ? "Analyzing..." : "Optimize Resume"}
+          </StyledButton>
+        </CardContent>
+      </StyledCard>
+
+      {results && (
+        <StyledCard sx={{ mt: 4 }}>
+          <CardHeader title="Optimization Suggestions" />
+          <CardContent>
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+              <ReactMarkdown>{results}</ReactMarkdown>
+            </Box>
+          </CardContent>
+        </StyledCard>
+      )}
+
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
+        <DialogTitle>{"Daily Limit Reached"}</DialogTitle>
+        <DialogContent>
+          <Typography>You have reached the daily limit of free uses. Upgrade to pro for unlimited access.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDialog(false)} color="primary">Cancel</Button>
+          <StyledButton
+            onClick={() => { window.location.href = "/upgrade"; }}
+            color="primary"
+            variant="contained"
+          >
+            Upgrade to Pro
+          </StyledButton>
+        </DialogActions>
+      </Dialog>
+    </Container>
     </>
   );
 };
