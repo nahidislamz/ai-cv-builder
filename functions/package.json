@@ -19,6 +19,7 @@
     "express": "^4.21.0",
     "firebase-admin": "^11.8.0",
     "firebase-functions": "^4.3.1",
+    "nodemailer": "^6.9.16",
     "stripe": "^17.0.0"
   },
   "devDependencies": {

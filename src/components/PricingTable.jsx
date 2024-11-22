@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Box,
-  Button,
   Card,
   CardActions,
   CardContent,
@@ -12,21 +11,13 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import CheckIcon from '@mui/icons-material/Check';
-import CloseIcon from '@mui/icons-material/Close';
 import StarIcon from '@mui/icons-material/Star';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-
+import { StyledButton } from './utils/shareComponent';
 const StyledToggleButtonGroup = styled(ToggleButtonGroup)(({ theme }) => ({
   '& .MuiToggleButtonGroup-grouped': {
     margin: theme.spacing(0.5),
@@ -45,14 +36,21 @@ const StyledToggleButtonGroup = styled(ToggleButtonGroup)(({ theme }) => ({
 
 const StyledToggleButton = styled(ToggleButton)(({ theme }) => ({
   '&.Mui-selected': {
-    backgroundColor: theme.palette.primary.main,
+    background: 'linear-gradient(45deg, #ef709b 30%, #fa9372 90%)',
     color: theme.palette.primary.contrastText,
     '&:hover': {
       backgroundColor: theme.palette.primary.dark,
     },
   },
 }));
-
+const PriceTag = styled(Typography)(({ theme }) => ({
+  fontSize: '3rem',
+  fontWeight: 700,
+  background: 'linear-gradient(45deg, #ef709b 30%, #fa9372 90%)',
+  WebkitBackgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+  marginBottom: theme.spacing(1),
+}));
 const MotionCard = motion(Card);
 
 const plans = [
@@ -66,7 +64,6 @@ const plans = [
     features: [
       'All Basic features',
       '3 CV optimizations per day',
-      'Build your CV with AI',
       'ATS friendly CV tips',
       'Email support',
     ],
@@ -78,13 +75,13 @@ const plans = [
     price: {
       weekly: 2.99,
       monthly: 9.99,
-      yearly: 49.99,
     },
     features: [
       'All Basic features',
       'Unlimited CV optimizations',
       'Cover letter generator',
       'Build your CV with AI',
+      'Use Premium templates free',
       'ATS friendly CV tips',
       'Priority email support',
     ],
@@ -133,9 +130,6 @@ export default function PricingTable() {
           <StyledToggleButton value="monthly" aria-label="monthly">
             Monthly
           </StyledToggleButton>
-          <StyledToggleButton value="yearly" aria-label="yearly">
-            Yearly
-          </StyledToggleButton>
         </StyledToggleButtonGroup>
       </Box>
 
@@ -174,7 +168,7 @@ export default function PricingTable() {
                 }
                 titleTypographyProps={{ align: 'center' }}
                 subheaderTypographyProps={{ align: 'center' }}
-                action={plan.isPopular ? <Chip icon={<StarIcon />} color="primary" label="POPULAR" /> : null}
+                action={plan.isPopular ? <Chip icon={<StarIcon />} sx={{background:'linear-gradient(45deg, #ef709b 30%, #fa9372 90%)'}} color="primary" label="POPULAR" /> : null}
                 sx={{
                   backgroundColor: (theme) =>
                     theme.palette.mode === 'light'
@@ -192,9 +186,7 @@ export default function PricingTable() {
                     mb: 4,
                   }}
                 >
-                  <Typography component="h2" variant="h3" color="text.primary" fontWeight="bold">
-                    ${plan.price[billingCycle]}
-                  </Typography>
+                  <PriceTag variant="h3">£{plan.price[billingCycle]}</PriceTag>
                   <Typography variant="h6" color="text.secondary">
                     /{billingCycle.slice(0, -2)}
                   </Typography>
@@ -215,21 +207,23 @@ export default function PricingTable() {
                 </ul>
               </CardContent>
               <CardActions sx={{ justifyContent: 'center', pb: 4 }}>
-                <Button
-                  size="large"
-                  variant={plan.buttonVariant}
-                  color={plan.isPopular ? 'primary' : 'inherit'}
-                  onClick={() => { navigate('/upgrade') }}
-                  sx={{
-                    px: 6,
-                    py: 1.5,
-                    fontSize: '1.1rem',
-                    borderRadius: '50px',
-                    boxShadow: plan.isPopular ? '0 4px 20px rgba(0,0,0,0.12)' : 'none',
-                  }}
-                >
-                  {plan.buttonText}
-                </Button>
+                  {plan.title!=='Basic' && (
+                    <StyledButton
+                    size="large"
+                    variant={plan.buttonVariant}
+                    color={plan.isPopular ? 'primary' : 'inherit'}
+                    onClick={() => { navigate('/upgrade') }}
+                    sx={{
+                      px: 6,
+                      py: 1.5,
+                      fontSize: '1.1rem',
+                      borderRadius: '50px',
+                      boxShadow: plan.isPopular ? '0 4px 20px rgba(0,0,0,0.12)' : 'none',
+                    }}
+                  >
+                    {plan.buttonText}
+                  </StyledButton>
+                  )}
               </CardActions>
             </MotionCard>
           </Grid>
@@ -292,7 +286,7 @@ export default function PricingTable() {
         <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 4 }}>
           Choose the plan that's right for you and start building your professional CV today!
         </Typography>
-        <Button
+        <StyledButton
           variant="contained"
           color="primary"
           size="large"
@@ -306,7 +300,7 @@ export default function PricingTable() {
           }}
         >
           Get Started Now
-        </Button>
+        </StyledButton>
       </Box>
     </Container>
   );

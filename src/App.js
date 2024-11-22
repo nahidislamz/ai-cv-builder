@@ -15,15 +15,16 @@ import BuildCvPage from "./containers/BuildCvPage";
 import Loading from "./components/Loading";
 import FAQPage from "./containers/FAQPage";
 import ContactPage from "./containers/ContactPage";
+import { UserProvider } from "./context/UserContext";
 
 // ProtectedRoute Component
 const ProtectedRoute = ({ user, children }) => {
   const location = useLocation();
-  
+
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
-  
+
   return children;
 };
 
@@ -43,7 +44,7 @@ function App() {
     palette: {
       mode,
       primary: {
-        main: mode === 'light' ? "#ff7043" : "#ff9100",
+        main: mode === 'light' ? "#ef709b" : "#ef709b",
       },
       background: {
         default: mode === 'light' ? "#f5f5f5" : "#121212",
@@ -74,7 +75,7 @@ function App() {
       document.body.classList.remove('light-mode');
       document.body.classList.add('dark-mode');
     }
-  
+
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -87,22 +88,22 @@ function App() {
 
     return () => unsubscribe();
 
-  }, [navigate,isDarkMode]);
+  }, [navigate, isDarkMode]);
 
   if (loading) {
     return (
       <ThemeProvider theme={theme}>
-          <CssBaseline />
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              height: '100vh',
-            }}
-          >
-            <Loading/>
-          </Box>
+        <CssBaseline />
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100vh',
+          }}
+        >
+          <Loading />
+        </Box>
       </ThemeProvider>
     );
   }
@@ -110,52 +111,54 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <AppBar toggleTheme={toggleTheme} mode={mode} />
-        <Box component="main" sx={{ flexGrow: 1 }}>
-          <Routes>
-            <Route path="/" element={<Navigate to={user ? "/home" : "/login"} />} />
-            <Route path="/login" element={user ? <Navigate to="/home" /> : <LoginPage />} />
-            <Route path="/home" element={<LandingPage />} />
-            <Route
-              path="/optimize"
-              element={
-                <ProtectedRoute user={user}>
-                  <OptimizeCvPage user={user} />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/upgrade"
-              element={
-                <ProtectedRoute user={user}>
-                  <SubscriptionPage user={user} />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/makecv"
-              element={
-                <ProtectedRoute user={user}>
-                  <BuildCvPage user={user} theme={theme}/>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/success"
-              element={
-                <ProtectedRoute user={user}>
-                  <PaymentSuccessPage user={user} />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/faq" element={<FAQPage />} />
-            <Route path="/contact" element={<ContactPage />} />
-            <Route path="/t&c" element={<TermsAndConditions />} />
-            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-          </Routes>
-        </Box>
-      </Box>
+        <UserProvider>
+          <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+            <AppBar toggleTheme={toggleTheme} mode={mode} />
+            <Box component="main" sx={{ flexGrow: 1, paddingTop: { xs: '56px', sm: '64px' } }}>
+              <Routes>
+                <Route path="/" element={<Navigate to={user ? "/home" : "/login"} />} />
+                <Route path="/login" element={user ? <Navigate to="/home" /> : <LoginPage />} />
+                <Route path="/home" element={<LandingPage />} />
+                <Route
+                  path="/optimize"
+                  element={
+                    <ProtectedRoute user={user}>
+                      <OptimizeCvPage user={user} />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/upgrade"
+                  element={
+                    <ProtectedRoute user={user}>
+                      <SubscriptionPage user={user} />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/makecv"
+                  element={
+                    <ProtectedRoute user={user}>
+                      <BuildCvPage user={user} theme={theme} />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/success"
+                  element={
+                    <ProtectedRoute user={user}>
+                      <PaymentSuccessPage user={user} />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="/faq" element={<FAQPage />} />
+                <Route path="/contact" element={<ContactPage />} />
+                <Route path="/t&c" element={<TermsAndConditions />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              </Routes>
+            </Box>
+          </Box>
+        </UserProvider>
     </ThemeProvider>
   );
 }

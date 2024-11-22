@@ -1,0 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Meddon&display=swap');
+@import "~slick-carousel/slick/slick.css";
+@import "~slick-carousel/slick/slick-theme.css";
+.meddon-regular {
+    font-family: "Meddon", cursive;
+    font-weight: 400;
+    font-style: normal;
+  }
+  

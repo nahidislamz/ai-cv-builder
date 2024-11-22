@@ -83,7 +83,6 @@ const MotionBox = motion(Box);
 
 export default function FAQPage() {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   return (
     <MotionContainer
@@ -92,82 +91,84 @@ export default function FAQPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <Box my={8}>
-        <MotionTypography
-          variant="h2"
-          component="h1"
-          gutterBottom
-          align="center"
-          fontWeight="bold"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-        >
-          Frequently Asked Questions
-        </MotionTypography>
-        <MotionBox
-          my={6}
-          initial="hidden"
-          animate="visible"
-          variants={{
-            visible: { transition: { staggerChildren: 0.07 } },
-          }}
-        >
-          {faqs.map((faq, index) => (
-            <motion.div
-              key={index}
-              variants={{
-                hidden: { opacity: 0, y: 20 },
-                visible: { opacity: 1, y: 0 },
-              }}
-            >
-              <StyledAccordion>
-                <StyledAccordionSummary
-                  expandIcon={<ExpandMoreIcon />}
-                  aria-controls={`faq-content-${index}`}
-                  id={`faq-header-${index}`}
-                >
-                  <Typography variant="h6">{faq.question}</Typography>
-                </StyledAccordionSummary>
-                <StyledAccordionDetails>
-                  <Typography>{faq.answer}</Typography>
-                </StyledAccordionDetails>
-              </StyledAccordion>
-            </motion.div>
-          ))}
-        </MotionBox>
-        <Divider sx={{ my: 6 }} />
-        <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
+      <AnimatePresence>
+        <Box my={8}>
           <MotionTypography
-            variant="h4"
+            variant="h2"
+            component="h1"
             gutterBottom
+            align="center"
             fontWeight="bold"
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.5 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
           >
-            Refund Policy
+            Frequently Asked Questions
           </MotionTypography>
           <MotionBox
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6, duration: 0.5 }}
+            my={6}
+            initial="hidden"
+            animate="visible"
+            variants={{
+              visible: { transition: { staggerChildren: 0.07 } },
+            }}
           >
-            <Typography variant="body1" paragraph>
-              At AI CV Builder, we are committed to providing high-quality services to help you create the best possible CV. Please note that we have a strict no-refund policy.
-            </Typography>
-            <Typography variant="body1" paragraph>
-              Once you have made a purchase and gained access to our AI CV building and optimization tools, we cannot offer refunds. This policy is in place because our service provides immediate access to valuable digital content and tools.
-            </Typography>
-            <Typography variant="body1" paragraph>
-              We encourage all users to carefully review our service offerings, terms of use, and this FAQ section before making a purchase. If you have any questions or concerns about our services, please contact our customer support team before buying.
-            </Typography>
-            <Typography variant="body1">
-              By making a purchase, you acknowledge and agree to this no-refund policy. We appreciate your understanding and look forward to helping you create an outstanding CV.
-            </Typography>
+            {faqs.map((faq, index) => (
+              <motion.div
+                key={index}
+                variants={{
+                  hidden: { opacity: 0, y: 20 },
+                  visible: { opacity: 1, y: 0 },
+                }}
+              >
+                <StyledAccordion>
+                  <StyledAccordionSummary
+                    expandIcon={<ExpandMoreIcon />}
+                    aria-controls={`faq-content-${index}`}
+                    id={`faq-header-${index}`}
+                  >
+                    <Typography variant="h6">{faq.question}</Typography>
+                  </StyledAccordionSummary>
+                  <StyledAccordionDetails>
+                    <Typography>{faq.answer}</Typography>
+                  </StyledAccordionDetails>
+                </StyledAccordion>
+              </motion.div>
+            ))}
           </MotionBox>
-        </Paper>
-      </Box>
+          <Divider sx={{ my: 6 }} />
+          <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
+            <MotionTypography
+              variant="h4"
+              gutterBottom
+              fontWeight="bold"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.5 }}
+            >
+              Refund Policy
+            </MotionTypography>
+            <MotionBox
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6, duration: 0.5 }}
+            >
+              <Typography variant="body1" paragraph>
+                At AI CV Builder, we are committed to providing high-quality services to help you create the best possible CV. Please note that we have a strict no-refund policy.
+              </Typography>
+              <Typography variant="body1" paragraph>
+                Once you have made a purchase and gained access to our AI CV building and optimization tools, we cannot offer refunds. This policy is in place because our service provides immediate access to valuable digital content and tools.
+              </Typography>
+              <Typography variant="body1" paragraph>
+                We encourage all users to carefully review our service offerings, terms of use, and this FAQ section before making a purchase. If you have any questions or concerns about our services, please contact our customer support team before buying.
+              </Typography>
+              <Typography variant="body1">
+                By making a purchase, you acknowledge and agree to this no-refund policy. We appreciate your understanding and look forward to helping you create an outstanding CV.
+              </Typography>
+            </MotionBox>
+          </Paper>
+        </Box>
+      </AnimatePresence>
     </MotionContainer>
   );
 }

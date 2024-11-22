@@ -56,7 +56,7 @@ const MakeCvLogo = ({ width = 200, height = 200 }) => {
           marginTop: 1,
         }}
       >
-        MakeCV
+        cvoptimizer
       </Typography>
     </Box>
   );

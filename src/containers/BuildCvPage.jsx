@@ -1,56 +1,62 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Container,
-  Typography,
-  TextField,
-  Button,
-  Grid,
-  Paper,
-  Box,
-  Stepper,
-  Step,
-  StepLabel,
-  useMediaQuery,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Alert,
-  CircularProgress,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
+    Container,
+    Typography,
+    TextField,
+    Button,
+    Grid,
+    Paper,
+    Box,
+    Drawer,
+    Stepper,
+    Step,
+    StepLabel,
+    StepButton,
+    useMediaQuery,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+    Alert,
+    CircularProgress,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
+    FormHelperText,
 } from '@mui/material';
-import { styled, useTheme } from '@mui/material/styles';
+import LockIcon from '@mui/icons-material/Lock';
 import {
-  CloudUpload as CloudUploadIcon,
-  Delete as DeleteIcon,
-  Download as DownloadIcon,
-  Lightbulb ,
-  Save,
+    CloudUpload as CloudUploadIcon,
+    Download as DownloadIcon,
 } from '@mui/icons-material';
-import IconButton from '@mui/material/IconButton';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './style.css'
 import { motion, AnimatePresence } from 'framer-motion';
-import Groq from "groq-sdk";
 import { jsPDF } from 'jspdf';
 import { firestore } from '../firebase'; // Path to your firebase configuration
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import RenderCv from '../components/RenderCv';
-import htmlDocx from 'html-docx-js/dist/html-docx';
 import mammoth from 'mammoth';
 import pdfToText from 'react-pdftotext';
-import TipsSlider from '../components/TipsSlider'
 import CryptoJS from 'crypto-js';
-import UploadFileIcon from '@mui/icons-material/UploadFile';
-const groq = new Groq({ apiKey: process.env.REACT_APP_GROQ_API_KEY, dangerouslyAllowBrowser: true });
-const secretKey = process.env.REACT_APP_SECRET_KEY ;
+import PizZip from 'pizzip';
+import Docxtemplater from 'docxtemplater';
+import { saveAs } from 'file-saver';
+import cvTemplate from '../components/templates/cv_template.docx';
+import minimalistCv from '../components/templates/minimalist.docx';
+import SkillsInput from '../components/SkillsInput';
+import { getGroqChatCompletion, generateSuggestedContent, parseCvData } from '../components/utils/aiutils'
+import { useUser } from '../context/UserContext';
+import FloatingMenuButton from '../components/FloatingMenuButton';
+import { StyledButton } from '../components/utils/shareComponent';
+import { styled } from '@mui/material/styles';
+import TemplateSlider from '../components/TemplateSlider';
 
-const getGroqChatCompletion = async (cvData) => {
+const secretKey = process.env.REACT_APP_SECRET_KEY;
+
+const getAiResponse = async (cvData) => {
     // Extract relevant information from cvData
     const { personalInfo, education, workExperience, skills, certifications, projects, languages, hobbies } = cvData;
 
@@ -89,20 +95,7 @@ const getGroqChatCompletion = async (cvData) => {
     Please generate a concise and impactful profile summary that highlights my strengths, relevant skills, and experiences based on the information provided. 
     The summary should be suitable for a professional context and tailored to showcase my qualifications effectively.`;
 
-    return groq.chat.completions.create({
-        model: "llama-3.1-70b-versatile",
-        messages: [
-            {
-                role: "user",
-                content: prompt
-            }
-        ],
-        temperature: 1,
-        max_tokens: 2024,
-        top_p: 1,
-        stream: false,
-        stop: null,
-    });
+    return getGroqChatCompletion(prompt, 1024)
 };
 // Define custom toolbar options
 const toolbarOptions = [
@@ -113,68 +106,31 @@ const toolbarOptions = [
 
 const steps = ['Personal', 'Education', 'Experience', 'Skills', 'Additional Info', 'Profile Summary'];
 
-const parseCvData = (text) => {
-    // Simple parsing logic based on patterns; customize for your file format
-    const personalInfo = {
-        name: text.match(/Name:\s*(.*)/i)?.[1] || '',
-        email: text.match(/Email:\s*(.*)/i)?.[1] || '',
-        phone: text.match(/Phone:\s*(.*)/i)?.[1] || '',
-    };
-
-    const education = [
-        {
-            school: text.match(/School:\s*(.*)/i)?.[1] || '',
-            degree: text.match(/Degree:\s*(.*)/i)?.[1] || '',
-            graduationYear: text.match(/Graduation Year:\s*(.*)/i)?.[1] || '',
-            subjects: text.match(/Subjects:\s*(.*)/i)?.[1] || '',
-        }
-    ];
-
-    const workExperience = [
-        {
-            company: text.match(/Company:\s*(.*)/i)?.[1] || '',
-            position: text.match(/Position:\s*(.*)/i)?.[1] || '',
-            startDate: text.match(/Start Date:\s*(.*)/i)?.[1] || '',
-            endDate: text.match(/End Date:\s*(.*)/i)?.[1] || '',
-            description: text.match(/Description:\s*(.*)/i)?.[1] || '',
-        }
-    ];
-
-    // Additional sections (skills, certifications, etc.)
-    const skills = text.match(/Skills:\s*(.*)/i)?.[1]?.split(',') || [];
-    const certifications = text.match(/Certifications:\s*(.*)/i)?.[1]?.split(',') || [];
-    const projects = [{ name: text.match(/Project:\s*(.*)/i)?.[1] || '' }];
-    const languages = [{ language: text.match(/Language:\s*(.*)/i)?.[1] || '', proficiency: 'Intermediate' }];
-
-    return {
-        personalInfo,
-        education,
-        workExperience,
-        skills,
-        certifications,
-        projects,
-        languages,
-        hobbies: [],
-        profileSummary: text.match(/Summary:\s*(.*)/i)?.[1] || '',
-    };
-};
-
 const StyledPaper = styled(Paper)(({ theme }) => ({
     padding: theme.spacing(4),
     marginBottom: theme.spacing(4),
     borderRadius: theme.shape.borderRadius * 2,
     boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
-  }));
-  
-  const StyledButton = styled(Button)(({ theme }) => ({
-    borderRadius: theme.shape.borderRadius,
-    padding: theme.spacing(1.5, 3),
-    fontWeight: 600,
-    textTransform: 'none',
-  }));
-  
-  const AnimatedTextField = motion(TextField);
-  
+}));
+
+const LockedOverlay = styled(Box)(({ theme }) => ({
+    position: 'fixed',
+    top: theme.mixins.toolbar.minHeight, // This accounts for the app bar height
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: theme.zIndex.drawer + 1,
+    color: 'white',
+    textAlign: 'center',
+    padding: theme.spacing(2),
+}));
+const AnimatedTextField = motion(TextField);
+
 
 function BuildCvPage({ user, theme }) {
     const [activeStep, setActiveStep] = useState(0);
@@ -194,11 +150,13 @@ function BuildCvPage({ user, theme }) {
     const [validationErrors, setValidationErrors] = useState({});
     const [loading, setLoading] = useState(false);
     const [openDialog, setOpenDialog] = useState(false);
-    const [resumeExists, setResumeExist] = useState(false);
+    const [suggestedSkills, setSuggestedSkills] = useState([]);
     const [file, setFile] = useState(null);
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const pdfRef = useRef(null);
-
+    const { isFreeUser } = useUser();
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [selectedTemplate, setSelectedTemplate] = useState(null);
     const saveCvData = async (userId) => {
         try {
             const cvRef = doc(firestore, "users", userId); // Adjust to your collection structure
@@ -224,11 +182,11 @@ function BuildCvPage({ user, theme }) {
             } else {
                 throw new Error("Unsupported file type. Please upload a PDF or DOCX file.");
             }
-    
+
             const parsedData = parseCvData(text);  // Function to parse text into structured data
             setCvData(parsedData);
             console.log(parsedData)
-    
+
         } catch (error) {
             console.error("Error extracting CV data:", error);
         }
@@ -240,14 +198,13 @@ function BuildCvPage({ user, theme }) {
             throw new Error("Failed to extract text from PDF: " + error.message);
         }
     };
-    
     // Extract text from DOCX using mammoth
     const extractTextFromDOCX = async (file) => {
         const arrayBuffer = await file.arrayBuffer();
         const { value } = await mammoth.extractRawText({ arrayBuffer });
         return value;
     };
-    
+
     useEffect(() => {
         const fetchCvData = async () => {
             try {
@@ -264,7 +221,8 @@ function BuildCvPage({ user, theme }) {
                     // Check if the 'resume' field exists and set cvData accordingly
                     if (data.resume) {
                         setCvData(data.resume); // Set cvData with the fetched resume data
-                        setResumeExist(true)
+                        setIsCvGenerated(true);
+                        setActiveStep(5);
                     } else {
                         console.log("No CV data found for user.");
                     }
@@ -282,7 +240,8 @@ function BuildCvPage({ user, theme }) {
     // Validation function for each step
     const validateStep = (step) => {
         const errors = {};
-
+        console.log("Validating step:", step);
+        console.log("Current cvData:", cvData);
         switch (step) {
             case 0: // Personal Info
                 if (!cvData.personalInfo.name) errors.name = "Full Name is required.";
@@ -291,7 +250,8 @@ function BuildCvPage({ user, theme }) {
                 break;
 
             case 1: // Education
-                errors.education = cvData.education.map((edu, index) => {
+                // Start with an empty array for education errors
+                const educationErrors = cvData.education.map((edu) => {
                     const entryErrors = {};
                     if (!edu.school) entryErrors.school = "School/University is required.";
                     if (!edu.degree) entryErrors.degree = "Degree is required.";
@@ -299,13 +259,17 @@ function BuildCvPage({ user, theme }) {
                     return entryErrors;
                 });
 
-                // Only keep entries that have at least one error
-                errors.education = errors.education.filter((e) => Object.keys(e).length > 0);
-                if (errors.education.length === 0) delete errors.education;
+                // Filter out entries with no errors
+                const nonEmptyEducationErrors = educationErrors.filter((entryErrors) => Object.keys(entryErrors).length > 0);
+
+                // Only add to errors if there are actually issues in education
+                if (nonEmptyEducationErrors.length > 0) {
+                    errors.education = nonEmptyEducationErrors;
+                }
                 break;
 
             case 2: // Work Experience
-                errors.workExperience = cvData.workExperience.map((exp) => {
+                const workExperienceErrors = cvData.workExperience.map((exp) => {
                     const entryErrors = {};
                     if (!exp.company) entryErrors.company = "Company is required.";
                     if (!exp.position) entryErrors.position = "Position is required.";
@@ -313,9 +277,11 @@ function BuildCvPage({ user, theme }) {
                     return entryErrors;
                 });
 
-                // Filter out any empty error objects
-                errors.workExperience = errors.workExperience.filter((e) => Object.keys(e).length > 0);
-                if (errors.workExperience.length === 0) delete errors.workExperience;
+                const nonEmptyWorkExperienceErrors = workExperienceErrors.filter((entryErrors) => Object.keys(entryErrors).length > 0);
+
+                if (nonEmptyWorkExperienceErrors.length > 0) {
+                    errors.workExperience = nonEmptyWorkExperienceErrors;
+                }
                 break;
 
             default:
@@ -324,7 +290,6 @@ function BuildCvPage({ user, theme }) {
 
         return errors;
     };
-
 
     const handleBack = () => {
         setActiveStep((prevActiveStep) => prevActiveStep - 1);
@@ -357,9 +322,7 @@ function BuildCvPage({ user, theme }) {
         });
     };
 
-
-    const addListItem = (section) => {
-
+    const addListItem = (section, value = null) => {
         setCvData((prevData) => ({
             ...prevData,
             [section]: [
@@ -369,21 +332,20 @@ function BuildCvPage({ user, theme }) {
                     : section === 'languages'
                         ? { language: '', proficiency: '' }
                         : section === 'education'
-                            ? { school: '', degree: '', graduationYear: '', subjects: '' } // Initialize education fields
-                            : section === 'skills' || section === 'hobbies' || section === 'certifications' ? ''
+                            ? { school: '', degree: '', graduationYear: '', subjects: '' }
+                            : section === 'skills' || section === 'hobbies' || section === 'certifications'
+                                ? (value !== null ? value : '') // Append the provided value or empty string
                                 : {}
-
             ]
         }));
+
         if (section === 'education') {
             setValidationErrors((prevErrors) => ({
                 ...prevErrors,
                 education: [...(prevErrors.education || []), { school: '', degree: '', graduationYear: '' }]
             }));
         }
-
     };
-
 
     const removeListItem = (section, index) => {
         setCvData((prevData) => ({
@@ -391,15 +353,18 @@ function BuildCvPage({ user, theme }) {
             [section]: prevData[section].filter((_, i) => i !== index),
         }));
     };
-
     // Handle next step with validation
     const handleNext = async () => {
         const errors = validateStep(activeStep);
+        setValidationErrors(errors);
+        console.log(errors);
 
         // If no errors, clear validationErrors and move to the next step
         if (Object.keys(errors).length === 0) {
             setValidationErrors({});
             setActiveStep((prevActiveStep) => prevActiveStep + 1);
+
+            if (activeStep === 2) { await handleSkillsSuggestion(); }
 
             if (activeStep === 4) { // Profile Summary step
                 await handleGenerateSummary();
@@ -409,13 +374,12 @@ function BuildCvPage({ user, theme }) {
             setValidationErrors(errors);
         }
     };
-
     const handleGenerateSummary = async () => {
         try {
             setLoading(true);
             // Only trigger AI generation if profileSummary is empty
             if (!cvData.profileSummary.trim()) {
-                const summaryResponse = await getGroqChatCompletion(cvData); // Replace with your actual function for AI completion
+                const summaryResponse = await getAiResponse(cvData); // Replace with your actual function for AI completion
                 console.log("AI Summary Response:", summaryResponse);
 
                 // Check if response has valid content
@@ -449,7 +413,7 @@ function BuildCvPage({ user, theme }) {
         try {
             setLoading(true);
             // Only trigger AI generation if profileSummary is empty
-            const summaryResponse = await getGroqChatCompletion(cvData); // Replace with your actual function for AI completion
+            const summaryResponse = await getAiResponse(cvData); // Replace with your actual function for AI completion
             console.log("AI Summary Response:", summaryResponse);
             // Check if response has valid content
             if (summaryResponse?.choices?.[0]?.message?.content?.trim()) {
@@ -484,58 +448,152 @@ function BuildCvPage({ user, theme }) {
         }
     };
 
+    const extractListItemsAsHtml = (generatedContent) => {
+        const listItems = []; // Initialize as an array
+        const lines = generatedContent.split('\n');
+        let isOrderedList = true;
+        lines.forEach(line => {
+            if (line.trim().match(/^(\d+\.\s)/)) { // Ordered item
+                listItems.push(`<li>${line.trim().substring(2)}</li>`);
+            } else if (line.trim().match(/^(•|-|\*)\s/)) { // Unordered item
+                isOrderedList = false;
+                listItems.push(`<li>${line.trim().substring(2)}</li>`);
+            }
+        });
+
+        // Join listItems if it's populated, or return an empty list string
+        const htmlList = listItems.length
+            ? (isOrderedList ? `<ol>${listItems.join('')}</ol>` : `<ul>${listItems.join('')}</ul>`)
+            : (isOrderedList ? "<ol></ol>" : "<ul></ul>");
+
+        return htmlList; // Ensure the return type is always a string
+    };
+    const handleGenerateContent = async (field, index) => {
+        try {
+            const input = field === 'subjects' ? cvData.education[index] : cvData.workExperience[index];
+            const type = field === 'subjects' ? 'subjects' : 'description';
+            const prompt = type === 'subjects'
+                ? `Suggest subjects for a degree in ${input.degree} at ${input.school}. provide only list of subject as output. maximum 5`
+                : `Provide a brief work experience description for a ${input.position} role at ${input.company}. provide only list of Key Responsibilities max 6`;
+
+            const generatedContent = await generateSuggestedContent(prompt);
+
+            console.log("Generated Content:", generatedContent); // Log generated content
+
+            // Extract and convert list items to HTML
+            const htmlList = extractListItemsAsHtml(generatedContent);
+
+            console.log("Extracted HTML List:", htmlList); // Log extracted HTML list
+
+            // Update the appropriate field in the cvData state
+            setCvData((prevData) => {
+                const updatedData = [...prevData[field === 'subjects' ? 'education' : 'workExperience']];
+                updatedData[index][field] = htmlList;
+                return {
+                    ...prevData,
+                    [field === 'subjects' ? 'education' : 'workExperience']: updatedData,
+                };
+            });
+        } catch (error) {
+            console.error('Error generating content:', error);
+        }
+    };
+
+    const handleSkillsSuggestion = async () => {
+        try {
+            const skillPrompt = `
+                Based on my work experience and project descriptions, suggest relevant skills that I may want to list on my CV.
+                Here is my experience data: ${JSON.stringify(cvData.workExperience)}
+                And here are my projects: ${JSON.stringify(cvData.projects)}.
+                Only suggest skills in a list format.
+            `;
+
+            const generatedContent = await generateSuggestedContent(skillPrompt);
+            console.log("API Response for Skills Suggestion:", generatedContent);
+
+            // Adjust for nested structure or direct string response
+            let suggestedSkillsText = generatedContent?.choices?.[0]?.message?.content?.trim() || generatedContent?.trim();
+
+            if (suggestedSkillsText) {
+                console.log("Suggested Skills Text:", suggestedSkillsText);
+
+                // Convert response text into an array by removing bullet points and trimming whitespace
+                const skillsArray = suggestedSkillsText
+                    .split('\n') // Split the text into lines.
+                    .map(skill =>
+                        skill
+                            .replace(/^\d+\.\s*/, '') // Remove numbers followed by a period (e.g., "1. ", "2. ", etc.)
+                            .replace(/^[-•*]\s*/, '') // Remove bullet characters (e.g., "-", "•", "*")
+                            .trim() // Trim extra spaces
+                    )
+                    .filter(skill =>
+                        skill.length > 0 && // Filter out empty entries.
+                        skill.length < 30 && // Exclude lines that are too long to be skills (e.g., descriptions).
+                        !skill.includes(':') // Exclude lines that may have colons, which are often descriptions.
+                    );
+
+                setSuggestedSkills(skillsArray);  // Update the suggestedSkills state
+                console.log("Parsed Skills Array:", skillsArray);
+            } else {
+                console.warn("No skills suggested. Check the response format.");
+            }
+        } catch (error) {
+            console.error("Error generating skills suggestion:", error);
+        }
+    };
+
     const renderStepContent = (step) => {
         switch (step) {
             case 0:
                 return (
                     <Box>
                         <Typography variant="h6" gutterBottom>
-                        Personal Information
+                            Personal Information
                         </Typography>
                         <Grid container spacing={3}>
-                        <Grid item xs={12}>
-                            <AnimatedTextField
-                            required
-                            fullWidth
-                            label="Full Name"
-                            value={cvData.personalInfo.name}
-                            onChange={(e) => handleInputChange('personalInfo', 'name', e.target.value)}
-                            error={!!validationErrors.name}
-                            helperText={validationErrors.name}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.5 }}
-                            />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                            <AnimatedTextField
-                            required
-                            fullWidth
-                            label="Email"
-                            type="email"
-                            value={cvData.personalInfo.email}
-                            onChange={(e) => handleInputChange('personalInfo', 'email', e.target.value)}
-                            error={!!validationErrors.email}
-                            helperText={validationErrors.email}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.5, delay: 0.1 }}
-                            />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                            <AnimatedTextField
-                            required
-                            fullWidth
-                            label="Phone"
-                            value={cvData.personalInfo.phone}
-                            onChange={(e) => handleInputChange('personalInfo', 'phone', e.target.value)}
-                            error={!!validationErrors.phone}
-                            helperText={validationErrors.phone}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.5, delay: 0.2 }}
-                            />
-                        </Grid>
+                            <Grid item xs={12}>
+                                <AnimatedTextField
+                                    required
+                                    fullWidth
+                                    label="Full Name"
+                                    value={cvData.personalInfo.name}
+                                    onChange={(e) => handleInputChange('personalInfo', 'name', e.target.value)}
+                                    error={!!validationErrors.name}
+                                    helperText={validationErrors.name}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.5 }}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <AnimatedTextField
+                                    required
+                                    fullWidth
+                                    label="Email"
+                                    type="email"
+                                    value={cvData.personalInfo.email}
+                                    onChange={(e) => handleInputChange('personalInfo', 'email', e.target.value)}
+                                    error={!!validationErrors.email}
+                                    helperText={validationErrors.email}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.5, delay: 0.1 }}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <AnimatedTextField
+                                    required
+                                    fullWidth
+                                    label="Phone"
+                                    value={cvData.personalInfo.phone}
+                                    onChange={(e) => handleInputChange('personalInfo', 'phone', e.target.value)}
+                                    error={!!validationErrors.phone}
+                                    helperText={validationErrors.phone}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.5, delay: 0.2 }}
+                                />
+                            </Grid>
                         </Grid>
                     </Box>
 
@@ -549,7 +607,7 @@ function BuildCvPage({ user, theme }) {
                         {cvData.education.map((edu, index) => (
                             <Grid container spacing={2} key={index} sx={{ mb: 2 }}>
                                 <Grid item xs={12}>
-                                    <AnimatePresence
+                                    <AnimatedTextField
                                         required
                                         fullWidth
                                         label="School/University"
@@ -599,6 +657,10 @@ function BuildCvPage({ user, theme }) {
                                         placeholder="Add your subjects here"
                                         modules={{ toolbar: toolbarOptions }} // Assuming toolbarOptions are defined
                                     />
+                                    <Button sx={{ marginTop: 1, alignItems: 'right' }} variant='outlined' size='small'
+                                        onClick={() => handleGenerateContent('subjects', index)}>
+                                        Generate
+                                    </Button>
                                 </Grid>
                                 {index > 0 && (
                                     <Grid item xs={12}>
@@ -673,28 +735,41 @@ function BuildCvPage({ user, theme }) {
                                             },
                                         }}
                                     />
+
                                 </Grid>
                                 <Grid item xs={12} sm={6}>
-                                    <AnimatedTextField
-                                        type="date"
-                                        fullWidth
-                                        label="End Date"
-                                        value={exp.endDate}
-                                        onChange={(e) => handleInputChange('workExperience', 'endDate', e.target.value, index)}
-                                        InputLabelProps={{
-                                            shrink: true, // Ensures the label does not overlap
-                                        }}
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ duration: 0.5, delay: 0.2 }}
-                                        placeholder="DD/MM/YYYY" // Placeholder to indicate the format
-                                        sx={{
-                                            '& input[type="date"]::-webkit-calendar-picker-indicator': {
-                                                filter: theme.palette.mode === 'dark' ? 'invert(1)' : 'none',
-                                            },
-                                        }}
-                                    />
+                                    <FormControl fullWidth>
+                                        <AnimatedTextField
+                                            type="date"
+                                            fullWidth
+                                            label="End Date"
+                                            value={exp.endDate}
+                                            onChange={(e) =>
+                                                handleInputChange('workExperience', 'endDate', e.target.value, index)
+                                            }
+                                            InputLabelProps={{
+                                                shrink: true,
+                                            }}
+                                            initial={{ opacity: 0, y: 20 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ duration: 0.6, delay: 0.1 }}
+                                            placeholder="DD/MM/YYYY"
+                                            sx={{
+                                                '& input[type="date"]::-webkit-calendar-picker-indicator': {
+                                                    filter: theme.palette.mode === 'dark' ? 'invert(1)' : 'none',
+                                                },
+                                                '& .MuiInputLabel-root': {
+                                                    fontWeight: 600,
+                                                    fontSize: '1rem',
+                                                    color: theme.palette.text.secondary,
+                                                },
+                                                marginBottom: 1,
+                                            }}
+                                        />
+                                        <FormHelperText>Leave blank if currently working</FormHelperText>
+                                    </FormControl>
                                 </Grid>
+
                                 <Grid item xs={12}>
                                     <ReactQuill
                                         theme="snow"
@@ -703,6 +778,12 @@ function BuildCvPage({ user, theme }) {
                                         placeholder="Describe your work experience"
                                         modules={{ toolbar: toolbarOptions }} // Apply custom toolbar
                                     />
+                                    <Button sx={{ marginTop: 1, alignItems: 'right' }} variant='outlined'
+                                        size='small'
+                                        onClick={() => handleGenerateContent('description', index)}
+                                    >
+                                        Generate
+                                    </Button>
                                 </Grid>
                                 {index > 0 && (
                                     <Grid item xs={12}>
@@ -720,44 +801,7 @@ function BuildCvPage({ user, theme }) {
                 );
             case 3:
                 return (
-                    <Box>
-                        <Alert severity="success" icon={<Lightbulb fontSize="inherit" />} sx={{ mb: 2 }}>
-                            Please add at least 3 skills.
-                        </Alert>
-                        <Typography variant="h6" gutterBottom>
-                            Skills
-                        </Typography>
-                        {cvData.skills.map((skill, index) => (
-                            <Grid container spacing={2} key={index} sx={{ mb: 2 }}>
-                                <Grid item xs={11}>
-                                    <AnimatedTextField
-                                        required
-                                        fullWidth
-                                        label={`Skill ${index + 1}`}
-                                        value={skill} // If it's an object, use `name` (or the appropriate field), otherwise use the skill itself
-                                        onChange={(e) => handleInputChange('skills', 'name', e.target.value, index)} // Set the field to 'name'
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ duration: 0.5, delay: 0.2 }}
-                                    />
-                                </Grid>
-                                {index > 0 && ( // Show the remove button only if it's not the first skill
-                                    <Grid item xs={1}>
-                                        <IconButton
-                                            onClick={() => removeListItem('skills', index)}
-                                            sx={{ color: 'red' }}
-                                            aria-label="remove skill"
-                                        >
-                                            <DeleteIcon />
-                                        </IconButton>
-                                    </Grid>
-                                )}
-                            </Grid>
-                        ))}
-                        <Button onClick={() => addListItem('skills')} variant="outlined" fullWidth size='sm'>
-                            Add Skill
-                        </Button>
-                    </Box>
+                    <SkillsInput cvData={cvData} setCvData={setCvData} suggestedSkills={suggestedSkills} />
                 );
             case 4:
                 return (
@@ -992,155 +1036,298 @@ function BuildCvPage({ user, theme }) {
         }
     };
 
+    const formatList = (text) =>
+        text
+            .replace(/<li>/g, '• ')  // Replace opening <li> with bullet and space
+            .replace(/<\/li>/g, '\n') // Replace closing </li> with a newline
+            .replace(/<\/?[^>]+(>|$)/g, ''); // Remove any other HTML tags
 
-    const handleDownloadPDF = () => {
-        const doc = new jsPDF({
-            format: 'a4',
-            unit: 'px',
-            orientation: 'portrait', // Default orientation for A4
-        });
-    
-        // Set font and prepare for content
-        doc.setFont('helvetica', 'normal');
-    
-        // Capture the width of the document and set scaling
-        const contentWidth = pdfRef.current.scrollWidth;
-        const pdfWidth = doc.internal.pageSize.getWidth();
-
-    
-        // Use doc.html with scaling for full-width fit
-        doc.html(pdfRef.current, {
-            callback: (pdf) => {
-                pdf.save(`${cvData.personalInfo.name}_CV.pdf`);
-            },
-            x: 10, // Left margin
-            y: 10, // Top margin
-            width: pdfWidth - 20, // Fit content within margins
-            windowWidth: contentWidth, // Ensure full width is captured
-            html2canvas: {
-                scale: 0.5, // Adjust scale for better quality or performance
-                margin: { top: 10, bottom: 10, left: 10, right: 10 }, // Apply margins to every page
-                scrollX: 0,
-                scrollY: 0,
-            },
-            autoPaging: 'text', // Automatically handle paging
-        });
+    const handleStepClick = (index) => {
+        if (index <= activeStep) {
+            setActiveStep(index);
+            setIsDrawerOpen(false);
+            setIsCvGenerated(false);
+        }
     };
-    
-
-    const handleDownloadDocx = () => {
-        // Get the HTML content from your reference (e.g., pdfRef.current.innerHTML)
-        const content = pdfRef.current.innerHTML; // Ensure this is valid HTML content
-    
-        // Convert the HTML content to a DOCX file
-        const converted = htmlDocx.asBlob(content);
-    
-        // Create a link element to trigger the download
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(converted);
-        link.download = `${cvData.personalInfo.name}_CV.docx`;
-        link.click();
+    const handleOpenDrawer = () => {
+        setIsDrawerOpen(true);
     };
 
+    const generateDocument = async (cvData, cvTemplate) => {
+        // Format data before generating the document
+        const formattedData = {
+            ...cvData,
+            education: cvData.education.map((edu) => ({
+              ...edu,
+              subjects: formatList(edu.subjects),
+            })),
+            workExperience: cvData.workExperience.map((work) => ({
+              ...work,
+              description: formatList(work.description),
+            })),
+            // Split skills into two columns
+            skillsLeft: cvData.skills.slice(0, Math.ceil(cvData.skills.length / 2)),
+            skillsRight: cvData.skills.slice(Math.ceil(cvData.skills.length / 2)),
+          };
 
+        try {
+            // Fetch and process template here, then set data with `formattedData`
+            const response = await fetch(cvTemplate);
+            const content = await response.arrayBuffer();
+
+            const zip = new PizZip(content);
+            const doc = new Docxtemplater(zip, {
+                paragraphLoop: true,
+                linebreaks: true,
+            });
+
+            doc.setData(formattedData);
+
+            try {
+                doc.render();
+                const output = doc.getZip().generate({
+                    type: 'blob',
+                    mimeType:
+                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                });
+                saveAs(output, `${cvData.personalInfo.name}_CV.docx`);
+            } catch (error) {
+                console.error('Error rendering document:', error);
+            }
+        } catch (error) {
+            console.error('Error loading document template:', error);
+        }
+    };
+
+    const handleGenerate = () => {
+        if (selectedTemplate) {
+            generateDocument(cvData, selectedTemplate); // Pass data and template
+            console.log(selectedTemplate);
+        } else {
+            alert('Please select a template.');
+        }
+    };
+
+    const generatePdfFromDocx = async (cvData, cvTemplate) => {
+        const formattedData = {
+            ...cvData,
+            education: cvData.education.map((edu) => ({
+                ...edu,
+                subjects: formatList(edu.subjects),
+            })),
+            workExperience: cvData.workExperience.map((work) => ({
+                ...work,
+                description: formatList(work.description),
+            })),
+        };
+
+        try {
+            const response = await fetch(cvTemplate);
+            const content = await response.arrayBuffer();
+
+            const zip = new PizZip(content);
+            const doc = new Docxtemplater(zip, {
+                paragraphLoop: true,
+                linebreaks: true,
+            });
+
+            doc.setData(formattedData);
+            doc.render();
+
+            // Generate the .docx as a blob
+            const output = doc.getZip().generate({
+                type: 'blob',
+                mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            });
+
+            // Convert to PDF using jsPDF
+            const pdf = new jsPDF();
+            const docText = doc.getFullText(); // Getting the full text to add to PDF
+            pdf.text(docText, 10, 10);  // Add text at specific coordinates in the PDF
+
+            // Save the PDF
+            pdf.save(`${cvData.personalInfo.name}_CV.pdf`);
+        } catch (error) {
+            console.error('Error loading or converting template:', error);
+        }
+    };
+
+    const templates = [
+        { name: 'Modern CV', filePath: cvTemplate },
+        { name: 'Minimalist CV', filePath: minimalistCv },
+    ];
     return (
-        <Container maxWidth="md">
-        <Box marginTop={4} marginBottom={4}>
-          <TipsSlider />
-        </Box>
-        <StyledPaper>
-          <Typography variant="h4" align="center" gutterBottom>
-            Build Your Professional CV
-          </Typography>
-          <Box display="flex" justifyContent="center" mt={3} mb={4}>
-            <StyledButton
-              color="primary"
-              variant="outlined"
-              startIcon={<CloudUploadIcon />}
-              onClick={() => document.getElementById('resume-upload').click()}
-            >
-              Extract From Existing CV
-            </StyledButton>
-            <Typography variant="caption" sx={{ ml: 2, alignSelf: 'center' }}>
-              {file ? file.name : 'No file chosen'}
-            </Typography>
-            <input
-              id="resume-upload"
-              type="file"
-              hidden
-              accept=".pdf, .docx"
-              onChange={(e) => handleFileUpload(e, setFile, setCvData, setValidationErrors)}
-            />
-          </Box>
-          <Stepper activeStep={activeStep} alternativeLabel={!isMobile} orientation={isMobile ? "vertical" : "horizontal"} sx={{ mb: 4 }}>
-            {steps.map((label) => (
-              <Step key={label}>
-                <StepLabel>{label}</StepLabel>
-              </Step>
-            ))}
-          </Stepper>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeStep}
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -50 }}
-              transition={{ duration: 0.3 }}
-            >
-              {!loading && isCvGenerated ? (
-                <Box>
-                  <div ref={pdfRef}>
-                    <RenderCv cvData={cvData} />
-                  </div>
-                  <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center', gap: 2 }}>
-                    <StyledButton variant="contained" onClick={handleDownloadPDF} startIcon={<DownloadIcon />}>
-                      Download PDF
+        <Container maxWidth="md" sx={{
+            py: isMobile ? 0 : { xs: 4, md: 8 }, // Remove padding on mobile
+            px: isMobile ? 0 : 2, // Optionally remove horizontal padding on mobile
+        }}>
+            {isMobile && (
+                <>
+                    <FloatingMenuButton handleOpenDrawer={handleOpenDrawer} />
+                    <Drawer
+                        anchor="left"
+                        open={isDrawerOpen}
+                        onClose={() => setIsDrawerOpen(false)}
+                        sx={{ width: 200, zIndex: 2000 }}
+                        PaperProps={{
+                            sx: {
+                                width: 240, // Adjust the drawer width as needed
+                                padding: 2,
+                                backgroundColor: theme.palette.background.default,
+                            },
+                        }}
+                    >
+                        <Typography variant="h6" sx={{ mb: 2, textAlign: "center" }}>
+                            Navigation
+                        </Typography>
+                        <Stepper activeStep={activeStep} orientation="vertical">
+                            {steps.map((label, index) => (
+                                <Step key={label} completed={index < activeStep}>
+                                    <StepButton onClick={() => handleStepClick(index)} disabled={index > activeStep}>
+                                        <StepLabel>{label}</StepLabel>
+                                    </StepButton>
+                                </Step>
+                            ))}
+                        </Stepper>
+                    </Drawer>
+                </>
+            )}
+
+            <StyledPaper sx={{
+                boxShadow: isMobile ? "none" : undefined, // Remove shadow on mobile
+                padding: isMobile ? 2 : 3, // Adjust padding for mobile
+                margin: isMobile ? 0 : "auto", // Remove margin on mobile
+            }}>
+                <Typography variant="h4" align="center" gutterBottom sx={{ fontSize: { xs: '1.5rem', md: '2.125rem' } }}>
+                    Build Your CV
+                </Typography>
+                {/*
+                <Box display="flex" flexDirection={isMobile ? 'column' : 'row'} alignItems="center" justifyContent="center" mt={3} mb={4}>
+                    <StyledButton
+                        color="primary"
+                        variant="outlined"
+                        startIcon={<CloudUploadIcon />}
+                        onClick={() => document.getElementById('resume-upload').click()}
+                        fullWidth={isMobile}
+                        sx={{ mb: isMobile ? 2 : 0 }}
+                    >
+                        Extract From CV
                     </StyledButton>
-                    <StyledButton variant="contained" onClick={handleDownloadDocx} startIcon={<DownloadIcon />}>
-                      Download DOCX
-                    </StyledButton>
-                  </Box>
+                    <Typography variant="caption" sx={{ ml: isMobile ? 0 : 2, mt: isMobile ? 1 : 0, textAlign: 'center' }}>
+                        {file ? file.name : 'No file chosen'}
+                    </Typography>
+                    <input
+                        id="resume-upload"
+                        type="file"
+                        hidden
+                        accept=".pdf, .docx"
+                        onChange={(e) => handleFileUpload(e, setFile, setCvData, setValidationErrors)}
+                    />
                 </Box>
-              ) : (
-                renderStepContent(activeStep)
-              )}
-            </motion.div>
-          </AnimatePresence>
-          {!isCvGenerated && (
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
-              <StyledButton onClick={handleBack} disabled={activeStep === 0}>
-                Back
-              </StyledButton>
-              <StyledButton
-                variant="contained"
-                color="primary"
-                onClick={activeStep === steps.length - 1 ? handleGenerateCv : handleNext}
-                disabled={loading}
-              >
-                {activeStep === steps.length - 1 ? 'Generate CV' : 'Next'}
-              </StyledButton>
-            </Box>
-          )}
-        </StyledPaper>
-        <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
-          <DialogTitle>{"Daily Limit Reached"}</DialogTitle>
-          <DialogContent>
-            <Typography>
-              You have reached the daily limit of free uses. Upgrade to pro for unlimited access.
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-            <StyledButton
-              onClick={() => { window.location.href = "/upgrade"; }}
-              color="primary"
-              variant="contained"
-            >
-              Upgrade to Pro
-            </StyledButton>
-          </DialogActions>
-        </Dialog>
-      </Container>
+                */}
+
+                {!isMobile && (
+                    <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 4 }}>
+                        {steps.map((label, index) => (
+                            <Step key={label} completed={index < activeStep}>
+                                <StepButton onClick={() => handleStepClick(index)} disabled={index > activeStep}>
+                                    <StepLabel>{label}</StepLabel>
+                                </StepButton>
+                            </Step>
+                        ))}
+                    </Stepper>
+                )}
+                {isFreeUser && (
+                    <LockedOverlay>
+                        <LockIcon sx={{ fontSize: 60, mb: 2 }} />
+                        <Typography variant="h5" gutterBottom>
+                            Premium Feature
+                        </Typography>
+                        <Typography variant="body1" paragraph>
+                            Upgrade to Pro to access advanced CV building features.
+                        </Typography>
+                        <StyledButton
+                            variant="contained"
+                            color="primary"
+                            onClick={() => setOpenDialog(true)}
+                        >
+                            Upgrade to Pro
+                        </StyledButton>
+                    </LockedOverlay>
+                )}
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={activeStep}
+                        initial={{ opacity: 0, x: 50 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -50 }}
+                        transition={{ duration: 0.3 }}
+                    >
+                        {!loading && isCvGenerated ? (
+                            <Box>
+                                <div ref={pdfRef}>
+                                    {/*<RenderCv cvData={cvData} />*/}
+                                    <TemplateSlider templates={templates} onSelectTemplate={(template) => setSelectedTemplate(template)} cvData={cvData} />
+                                </div>
+                                <Box sx={{ mt: 4, display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'center', gap: 2 }}>
+                                        {/*
+                                    <StyledButton variant="contained" onClick={generatePdfFromDocx(cvData,selectedTemplate)} startIcon={<DownloadIcon />} fullWidth={isMobile} disabled={isFreeUser}>
+                                        Download PDF
+                                    </StyledButton>
+                                        */}
+                                    <StyledButton variant="contained" onClick={handleGenerate}
+                                        disabled={!selectedTemplate && isFreeUser} startIcon={<DownloadIcon />} fullWidth={isMobile}>
+                                        Download DOCX
+                                    </StyledButton>
+                                </Box>
+                            </Box>
+                        ) : (
+                            renderStepContent(activeStep)
+                        )}
+                    </motion.div>
+                </AnimatePresence>
+                {!isCvGenerated && (
+                    <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', mt: 4, gap: 2 }}>
+                        <StyledButton onClick={handleBack} disabled={activeStep === 0} fullWidth={isMobile}>
+                            Back
+                        </StyledButton>
+                        <StyledButton
+                            variant="contained"
+                            color="primary"
+                            onClick={activeStep === steps.length - 1 ? handleGenerateCv : handleNext}
+                            disabled={loading || isFreeUser}
+                            fullWidth={isMobile}
+                        >
+                            {activeStep === steps.length - 1 ? 'Generate CV' : 'Next'}
+                        </StyledButton>
+                    </Box>
+                )}
+            </StyledPaper>
+            <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth maxWidth="sm">
+                <DialogTitle>{"Upgrade to Pro"}</DialogTitle>
+                <DialogContent>
+                    <Typography variant="body1" paragraph>
+                        Upgrade to pro for unlimited access to all features, including:
+                    </Typography>
+                    <Typography component="ul" sx={{ pl: 2 }}>
+                        <li>Advanced CV building tools</li>
+                        <li>Premium templates</li>
+                        <li>AI-powered content suggestions</li>
+                        <li>Unlimited CV downloads</li>
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+                    <StyledButton
+                        onClick={() => { window.location.href = "/upgrade"; }}
+                        color="primary"
+                        variant="contained"
+                    >
+                        Upgrade Now
+                    </StyledButton>
+                </DialogActions>
+            </Dialog>
+        </Container>
     );
 }
 

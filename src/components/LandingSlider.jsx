@@ -3,12 +3,10 @@ import {
   Box,
   Container,
   Typography,
-  Button,
-  useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { motion, AnimatePresence } from 'framer-motion';
-import { styled } from '@mui/system';
+import { StyledButton } from './utils/shareComponent';
 
 const slides = [
   {
@@ -19,42 +17,109 @@ const slides = [
   },
   {
     title: "Optimize Your CV with AI",
-    subtitle: "Enhance your CV to match job descriptions and boost your chances of passing ATS filters. Effortlessly align your CV with industry keywords and make it stand out.",
+    subtitle: "Enhance your CV to match job descriptions and boost your chances of passing ATS filters.",
     buttonText: "OPTIMIZE CV",
     buttonLink: "/optimize"
   }
 ];
 
-const StyledButton = styled(Button)(({ theme }) => ({
-  backgroundColor: theme.palette.primary.main,
-  marginTop:'15px',
-  fontSize: '1.1rem',
-  padding: '12px 32px',
-  borderRadius: '50px',
-  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
-  transition: 'all 0.3s ease',
-  '&:hover': {
-    backgroundColor: theme.palette.primary.dark,
-    transform: 'translateY(-2px)',
-    boxShadow: '0 6px 25px rgba(0, 0, 0, 0.2)',
-  },
-}));
+// Create a canvas-based animated background
+const AnimatedBackground = ({ theme }) => {
+  const canvasRef = React.useRef(null);
+  const isDark = theme.palette.mode === 'dark';
 
-const PatternBackground = styled(Box)(({ theme }) => ({
-  position: 'absolute',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  zIndex: 0,
-  opacity: 0.1,
-  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%23${theme.palette.primary.main.replace('#', '')}' fill-opacity='0.4'%3E%3Cpath opacity='.5' d='M96 95h4v1h-4v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9zm-1 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm9-10v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm9-10v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm9-10v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9z'/%3E%3Cpath d='M6 5V0H5v5H0v1h5v94h1V6h94V5H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-  backgroundRepeat: 'repeat',
-}));
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    let animationFrameId;
+    let time = 0;
+
+    // Set canvas size
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // Draw function
+    const draw = () => {
+      ctx.fillStyle = isDark ? '#1a1a1a' : '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw grid pattern
+      const gridSize = 50;
+      const lineWidth = 1;
+      
+      ctx.strokeStyle = isDark 
+        ? `rgba(255, 255, 255, 0.1)` 
+        : `rgba(0, 0, 0, 0.1)`;
+      ctx.lineWidth = lineWidth;
+
+      // Vertical lines
+      for (let x = 0; x < canvas.width; x += gridSize) {
+        const offset = Math.sin(time + x * 0.01) * 5;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x + offset, canvas.height);
+        ctx.stroke();
+      }
+
+      // Horizontal lines
+      for (let y = 0; y < canvas.height; y += gridSize) {
+        const offset = Math.sin(time + y * 0.01) * 5;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y + offset);
+        ctx.stroke();
+      }
+
+      // Draw accent circles
+      const circleCount = 5;
+      for (let i = 0; i < circleCount; i++) {
+        const x = canvas.width * (0.2 + Math.sin(time * 0.5 + i) * 0.1);
+        const y = canvas.height * (0.2 + Math.cos(time * 0.5 + i) * 0.1);
+        const radius = 50 + Math.sin(time + i) * 20;
+
+        const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        gradient.addColorStop(0, `${theme.palette.primary.main}40`);
+        gradient.addColorStop(1, 'transparent');
+
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      time += 0.01;
+      animationFrameId = window.requestAnimationFrame(draw);
+    };
+
+    draw();
+
+    return () => {
+      window.removeEventListener('resize', resizeCanvas);
+      window.cancelAnimationFrame(animationFrameId);
+    };
+  }, [theme.palette.mode, theme.palette.primary.main]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        zIndex: 0,
+      }}
+    />
+  );
+};
 
 const SlideContent = ({ slide, isActive }) => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   return (
     <AnimatePresence>
@@ -136,7 +201,7 @@ export default function LandingSlider() {
         backgroundColor: theme.palette.background.default,
       }}
     >
-      <PatternBackground />
+      <AnimatedBackground theme={theme} />
       <Container maxWidth="lg">
         <Box
           sx={{
@@ -156,6 +221,8 @@ export default function LandingSlider() {
             justifyContent: 'center',
             gap: 2,
             mt: 4,
+            position: 'relative',
+            zIndex: 1,
           }}
         >
           {slides.map((_, index) => (

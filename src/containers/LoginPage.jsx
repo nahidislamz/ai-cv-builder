@@ -14,7 +14,12 @@ import {
   Alert,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import { signInWithPopup, GoogleAuthProvider, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
+import { 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  isSignInWithEmailLink, 
+  signInWithEmailLink,
+} from 'firebase/auth';
 import { auth, firestore } from '../firebase';
 import { useNavigate, useLocation } from 'react-router-dom';
 import GoogleIcon from '@mui/icons-material/Google';
@@ -22,6 +27,7 @@ import EmailIcon from '@mui/icons-material/Email';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Link as RouterLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { GradientTypography } from '../components/utils/shareComponent';
 
 const StyledContainer = styled(Container)(({ theme }) => ({
   display: 'flex',
@@ -93,23 +99,34 @@ function LoginPage() {
     }
     setLoading(true);
     setError(null);
-
-    const actionCodeSettings = {
-      url: 'https://ai-resume-opt.web.app/login',
-      handleCodeInApp: true,
-    };
-
     try {
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+      // Send the email using your custom API
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/send-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send email');
+      }
+
+      // Save the email for verification
       window.localStorage.setItem('emailForSignIn', email);
       setSuccessMessage('Check your inbox for a sign-in link!');
     } catch (err) {
       setError('Failed to send sign-in link. Please try again.');
-      console.error(err);
+      console.error('Error:', err);
     } finally {
       setLoading(false);
     }
   };
+  
+  
 
   useEffect(() => {
     const emailLink = window.location.href;
@@ -162,9 +179,9 @@ function LoginPage() {
         transition={{ duration: 0.5 }}
       >
         <StyledBox>
-          <Typography component="h1" variant="h3" align="center" sx={{ mb: 2, fontWeight: 'bold' }}>
-            NexaAI
-          </Typography>
+          <GradientTypography component="h1" variant="h3" align="center" sx={{ mb: 2, fontWeight: 'bold' }}>
+            CV Optimizer
+          </GradientTypography>
           <Typography variant="subtitle1" align="center" sx={{ mb: 4 }}>
             Next Gen AI Resume Builder
           </Typography>

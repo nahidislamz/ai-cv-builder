@@ -26,7 +26,8 @@ import { motion } from 'framer-motion';
 import PricingTable from '../components/PricingTable';
 import LandingSlider from '../components/LandingSlider';
 import ContactPage from './ContactPage';
-
+import AboutUsPage from './AboutUsPage'
+import { GradientAvatar } from '../components/utils/shareComponent';
 const MotionCard = motion(Card);
 const MotionBox = motion(Box);
 
@@ -47,9 +48,9 @@ const Feature = ({ icon, title, description }) => (
     >
         <CardContent>
             <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-                <Avatar sx={{ width: 60, height: 60, bgcolor: 'primary.main' }}>
+                <GradientAvatar sx={{ width: 60, height: 60, bgcolor: 'primary.main' }}>
                     {icon}
-                </Avatar>
+                </GradientAvatar>
             </Box>
             <Typography variant="h5" component="div" gutterBottom align="center" fontWeight="bold">
                 {title}
@@ -92,7 +93,7 @@ export default function LandingPage() {
             <LandingSlider />
             <Container maxWidth="lg" sx={{ mt: 8, mb: 8 }}>
                 <Typography variant="h3" component="h2" gutterBottom align="center" fontWeight="bold" sx={{ mb: 6 , fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' } }}>
-                    Why Choose Our AI CV Builder?
+                    Our Services
                 </Typography>
                 <Grid container spacing={4}>
                     <Grid item xs={12} sm={6} md={4}>
@@ -179,7 +180,7 @@ export default function LandingPage() {
                         textAlign: 'center',
                         p: 6,
                         borderRadius: '16px',
-                        bgcolor: 'primary.main',
+                        background: 'linear-gradient(45deg, #ef709b 30%, #fa9372 90%)',
                         color: 'white',
                     }}
                 >
@@ -205,7 +206,7 @@ export default function LandingPage() {
                     </Button>
                 </MotionBox>
             </Container>
-
+            <AboutUsPage/>
             <ContactPage />
 
             <Box component="footer" sx={{ bgcolor: 'background.paper', py: 6 }}>

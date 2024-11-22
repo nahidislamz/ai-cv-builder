@@ -22,30 +22,12 @@ import {
 } from '@mui/icons-material';
 import emailjs from '@emailjs/browser';
 import { motion } from 'framer-motion';
-
-const StyledPaper = styled(Paper)(({ theme }) => ({
-  padding: theme.spacing(4),
-  height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  borderRadius: theme.shape.borderRadius * 2,
-  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-  transition: 'transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out',
-  '&:hover': {
-    transform: 'translateY(-5px)',
-    boxShadow: '0 12px 48px rgba(0, 0, 0, 0.15)',
-  },
-}));
+import { GradientTypography,StyledButton ,StyledPaper} from '../components/utils/shareComponent';
 
 const StyledTextField = styled(TextField)(({ theme }) => ({
   marginBottom: theme.spacing(2),
 }));
 
-const StyledButton = styled(Button)(({ theme }) => ({
-  marginTop: theme.spacing(2),
-  padding: theme.spacing(1, 4),
-  borderRadius: theme.shape.borderRadius * 2,
-}));
 
 const ContactInfoItem = styled(Box)(({ theme }) => ({
   display: 'flex',
@@ -134,7 +116,7 @@ export default function ContactPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <Box sx={{ my: 8 }}>
+      <Box sx={{ mb: 8 }}>
         <Typography variant="h2" component="h1" gutterBottom align="center" fontWeight="bold" sx={{ mb: 6, fontSize: { xs: '2.5rem', sm: '3rem', md: '3.75rem' } }}>
           Get in Touch
         </Typography>
@@ -146,9 +128,9 @@ export default function ContactPage() {
             visible: { opacity: 1, x: 0, transition: { duration: 0.5 } },
           }}>
             <StyledPaper elevation={3}>
-              <Typography variant="h4" gutterBottom color="primary">
+              <GradientTypography variant="h4" gutterBottom color="primary">
                 Send us a message
-              </Typography>
+              </GradientTypography>
               <form onSubmit={handleSubmit}>
                 <StyledTextField
                   fullWidth
@@ -207,26 +189,26 @@ export default function ContactPage() {
             visible: { opacity: 1, x: 0, transition: { duration: 0.5 } },
           }}>
             <StyledPaper elevation={3}>
-              <Typography variant="h4" gutterBottom color="primary">
+              <GradientTypography variant="h4" gutterBottom color="primary">
                 Contact Information
-              </Typography>
+              </GradientTypography>
               <Box sx={{ mt: 4 }}>
                 <ContactInfoItem>
                   <EmailIcon fontSize="large" />
                   <Typography variant="h6">
-                    support@aicvbuilder.com
+                      support@cvoptimizer.com
                   </Typography>
                 </ContactInfoItem>
                 <ContactInfoItem>
                   <PhoneIcon fontSize="large" />
                   <Typography variant="h6">
-                    +1 (555) 123-4567
+                    +44 (077) 834-77876
                   </Typography>
                 </ContactInfoItem>
                 <ContactInfoItem>
                   <LocationIcon fontSize="large" />
                   <Typography variant="h6">
-                    123 AI Street, Tech City, TC 12345
+                    London, United Kingdom
                   </Typography>
                 </ContactInfoItem>
               </Box>
