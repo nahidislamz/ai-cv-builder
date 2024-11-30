@@ -13,6 +13,7 @@ import {
   Snackbar,
   useMediaQuery,
 } from '@mui/material';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { doc, getDoc } from "firebase/firestore";
 import { firestore } from '../firebase';
 import dayjs from 'dayjs';
@@ -70,6 +71,7 @@ function SubscriptionPlans({ user }) {
   const [message, setMessage] = useState('');
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [dialogLoading, setDialogLoading] = useState(false);
 
   useEffect(() => {
     const fetchPlanDetails = async () => {
@@ -99,6 +101,7 @@ function SubscriptionPlans({ user }) {
 
   const handleCancelSubscription = async () => {
     setLoading(true);
+    setDialogLoading(true);
     try {
       const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/cancel-subscription`, {
         method: 'POST',
@@ -111,6 +114,7 @@ function SubscriptionPlans({ user }) {
       const data = await response.json();
       if (response.ok) {
         setMessage('Your subscription has been canceled successfully');
+        
       } else {
         setMessage(`Failed to cancel subscription: ${data.error}`);
       }
@@ -118,7 +122,7 @@ function SubscriptionPlans({ user }) {
       setMessage('Error canceling subscription: ' + error.message);
     } finally {
       setLoading(false);
-      setOpenDialog(false);
+      setDialogLoading(false);
     }
   };
 
@@ -218,23 +222,57 @@ function SubscriptionPlans({ user }) {
       <Dialog open={openDialog} onClose={handleCloseDialog} fullWidth maxWidth="sm">
         <DialogTitle>Confirm Subscription Cancellation</DialogTitle>
         <DialogContent>
-          <Typography>
-            Are you sure you want to cancel your subscription? You will lose access to premium features at the end of your current billing period.
-          </Typography>
+        <Box sx={{ textAlign: 'center', py: 3 }}>
+            {dialogLoading ? (
+              <>
+                <CircularProgress size={50} />
+                <Typography variant="h6" sx={{ mt: 2, fontWeight: 'bold' }}>
+                  Cancelling your subscription...
+                </Typography>
+              </>
+            ) : message ? (
+              <>
+                <CheckCircleIcon color="success" sx={{ fontSize: 60, mb: 1 }} />
+                <Typography variant="h5" sx={{ mt: 2, fontWeight: 'bold' }}>
+                  {message}
+                </Typography>
+              </>
+            ) : (
+              <>
+                <Typography>
+                  Are you sure you want to cancel your subscription? You will lose access to premium features at the end of your current billing period.
+                </Typography>
+              </>
+            )}
+          </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseDialog} color="primary">
-            No, Keep My Subscription
-          </Button>
-          <StyledButton onClick={handleCancelSubscription} color="primary" autoFocus>
-            Yes, Cancel Subscription
-          </StyledButton>
+        {message ? (
+            <StyledButton
+              onClick={() => { handleCloseDialog(); window.location.reload(); }}
+              color="primary"
+              variant="contained"
+              sx={{ minWidth: 100 }}
+            >
+              Okay
+            </StyledButton>
+          ) : (
+            <>
+                <Button onClick={handleCloseDialog} color="primary">
+                  No, Keep My Subscription
+                </Button>
+                <StyledButton onClick={handleCancelSubscription} color="primary" autoFocus>
+                  Yes, Cancel Subscription
+                </StyledButton>
+            </>
+
+          )}
         </DialogActions>
       </Dialog>
 
       {message && (
         <Snackbar
-          open={!!message}
+          open={!message}
           autoHideDuration={6000}
           onClose={() => setMessage('')}
           message={message}

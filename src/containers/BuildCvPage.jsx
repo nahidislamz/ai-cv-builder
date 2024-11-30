@@ -24,6 +24,7 @@ import {
     DialogContent,
     DialogTitle,
     FormHelperText,
+    Link
 } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import {
@@ -44,8 +45,6 @@ import CryptoJS from 'crypto-js';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { saveAs } from 'file-saver';
-import cvTemplate from '../components/templates/cv_template.docx';
-import minimalistCv from '../components/templates/minimalist.docx';
 import SkillsInput from '../components/SkillsInput';
 import { getGroqChatCompletion, generateSuggestedContent, parseCvData } from '../components/utils/aiutils'
 import { useUser } from '../context/UserContext';
@@ -53,6 +52,15 @@ import FloatingMenuButton from '../components/FloatingMenuButton';
 import { StyledButton } from '../components/utils/shareComponent';
 import { styled } from '@mui/material/styles';
 import TemplateSlider from '../components/TemplateSlider';
+
+import cvTemplate from '../components/templates/cv_template.docx';
+import ATS_Bold from '../components/templates/ATS_Bold.docx';
+import ATS_Classic from '../components/templates/ATS_Classic.docx';
+import SALES_Resume from '../components/templates/SALES.docx';
+
+import ats_bold from '../components/templates/images/ats_bold.png'
+import ats_classic from '../components/templates/images/ATS_Classic.png'
+import sales_bold from '../components/templates/images/Sales_Bold.png';
 
 const secretKey = process.env.REACT_APP_SECRET_KEY;
 
@@ -106,6 +114,11 @@ const toolbarOptions = [
 
 const steps = ['Personal', 'Education', 'Experience', 'Skills', 'Additional Info', 'Profile Summary'];
 
+const UpgradeLink = styled(Link)(({ theme }) => ({
+    display: 'block',
+    marginBottom: theme.spacing(2),
+    textAlign: 'center',
+}));
 const StyledPaper = styled(Paper)(({ theme }) => ({
     padding: theme.spacing(4),
     marginBottom: theme.spacing(4),
@@ -136,10 +149,10 @@ function BuildCvPage({ user, theme }) {
     const [activeStep, setActiveStep] = useState(0);
     const [cvData, setCvData] = useState({
         personalInfo: { name: '', email: '', phone: '' },
-        education: [{ school: '', degree: '', graduationYear: '', subjects: '' }],
-        workExperience: [{ company: '', position: '', startDate: '', endDate: '', description: '' }],
-        skills: [''],
-        certifications: [''],
+        education: [{ school: '', degree: '', startDate: '', endDate: '', location: '', subjects: '' }],
+        workExperience: [{ company: '', position: '', startDate: '', endDate: '', location: '', description: '' }],
+        skills: [],
+        certifications: [],
         projects: [],
         languages: [{ language: '', proficiency: '' }],
         hobbies: [],
@@ -255,7 +268,7 @@ function BuildCvPage({ user, theme }) {
                     const entryErrors = {};
                     if (!edu.school) entryErrors.school = "School/University is required.";
                     if (!edu.degree) entryErrors.degree = "Degree is required.";
-                    if (!edu.graduationYear) entryErrors.graduationYear = "Graduation Year is required.";
+                    if (!edu.startDate) entryErrors.startDate = "Start Date Year is required.";
                     return entryErrors;
                 });
 
@@ -634,21 +647,74 @@ function BuildCvPage({ user, theme }) {
                                         transition={{ duration: 0.5, delay: 0.2 }}
                                     />
                                 </Grid>
-                                <Grid item xs={12}>
+                                <Grid item xs={12} sm={6}>
                                     <AnimatedTextField
                                         required
+                                        type="date"
                                         fullWidth
-                                        type="number"
-                                        label="Graduation Year"
-                                        value={edu.graduationYear}
-                                        onChange={(e) => handleInputChange('education', 'graduationYear', e.target.value, index)}
-                                        error={!!validationErrors.education?.[index]?.graduationYear}
-                                        helperText={validationErrors.education?.[index]?.graduationYear}
+                                        label="Start Date"
+                                        value={edu.startDate}
+                                        onChange={(e) => handleInputChange('education', 'startDate', e.target.value, index)}
+                                        error={!!validationErrors.education?.[index]?.startDate}
+                                        helperText={validationErrors.education?.[index]?.startDate}
+                                        InputLabelProps={{
+                                            shrink: true, // Ensures the label does not overlap
+                                        }}
                                         initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ duration: 0.5, delay: 0.2 }}
+                                        placeholder="DD/MM/YYYY" // Placeholder to indicate the format
+                                        sx={{
+                                            '& input[type="date"]::-webkit-calendar-picker-indicator': {
+                                                filter: theme.palette.mode === 'dark' ? 'invert(1)' : 'none',
+                                            },
+                                        }}
                                     />
 
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <FormControl fullWidth>
+                                        <AnimatedTextField
+                                            type="date"
+                                            fullWidth
+                                            label="End Date"
+                                            value={edu.endDate}
+                                            onChange={(e) =>
+                                                handleInputChange('education', 'endDate', e.target.value, index)
+                                            }
+                                            InputLabelProps={{
+                                                shrink: true,
+                                            }}
+                                            initial={{ opacity: 0, y: 20 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ duration: 0.6, delay: 0.1 }}
+                                            placeholder="DD/MM/YYYY"
+                                            sx={{
+                                                '& input[type="date"]::-webkit-calendar-picker-indicator': {
+                                                    filter: theme.palette.mode === 'dark' ? 'invert(1)' : 'none',
+                                                },
+                                                '& .MuiInputLabel-root': {
+                                                    fontWeight: 600,
+                                                    fontSize: '1rem',
+                                                    color: theme.palette.text.secondary,
+                                                },
+                                                marginBottom: 1,
+                                            }}
+                                        />
+                                        <FormHelperText>Leave blank if currently working</FormHelperText>
+                                    </FormControl>
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <AnimatedTextField
+                                        fullWidth
+                                        label="Location"
+                                        value={edu.location}
+                                        onChange={(e) => handleInputChange('education', 'location', e.target.value, index)}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
+                                        placeholder="e.g., London, UK"
+                                    />
                                 </Grid>
                                 <Grid item xs={12}>
                                     <ReactQuill
@@ -769,7 +835,18 @@ function BuildCvPage({ user, theme }) {
                                         <FormHelperText>Leave blank if currently working</FormHelperText>
                                     </FormControl>
                                 </Grid>
-
+                                <Grid item xs={12}>
+                                    <AnimatedTextField
+                                        fullWidth
+                                        label="Location"
+                                        value={exp.location}
+                                        onChange={(e) => handleInputChange('workExperience', 'location', e.target.value, index)}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5, delay: 0.2 }}
+                                        placeholder="e.g., London, UK"
+                                    />
+                                </Grid>
                                 <Grid item xs={12}>
                                     <ReactQuill
                                         theme="snow"
@@ -1058,17 +1135,35 @@ function BuildCvPage({ user, theme }) {
         const formattedData = {
             ...cvData,
             education: cvData.education.map((edu) => ({
-              ...edu,
-              subjects: formatList(edu.subjects),
+                ...edu,
+                subjects: formatList(edu.subjects),
+                // Format startDate and endDate
+                duration: formatDateRange(edu.startDate, edu.endDate),
             })),
             workExperience: cvData.workExperience.map((work) => ({
-              ...work,
-              description: formatList(work.description),
+                ...work,
+                description: formatList(work.description),
+                // Format startDate and endDate
+                duration: formatDateRange(work.startDate, work.endDate),
             })),
             // Split skills into two columns
             skillsLeft: cvData.skills.slice(0, Math.ceil(cvData.skills.length / 2)),
             skillsRight: cvData.skills.slice(Math.ceil(cvData.skills.length / 2)),
-          };
+        };
+        
+        // Helper function to format date range
+        function formatDateRange(startDate, endDate) {
+            const formatDate = (date) => {
+                if (!date) return ""; // Handle empty string or undefined
+                const options = { year: "numeric", month: "short" }; // Format to "Jan 2023"
+                return new Date(date).toLocaleDateString("en-US", options);
+            };
+        
+            const formattedStartDate = formatDate(startDate);
+            const formattedEndDate = endDate ? formatDate(endDate) : "Present"; // Default to "Present" if endDate is empty
+            return `${formattedStartDate} - ${formattedEndDate}`;
+        }
+        
 
         try {
             // Fetch and process template here, then set data with `formattedData`
@@ -1153,8 +1248,9 @@ function BuildCvPage({ user, theme }) {
     };
 
     const templates = [
-        { name: 'Modern CV', filePath: cvTemplate },
-        { name: 'Minimalist CV', filePath: minimalistCv },
+        { name: 'ATS Bold', filePath: ATS_Bold, imageUrl: ats_bold },
+        { name: 'ATS Classic', filePath: ATS_Classic, imageUrl: ats_classic },
+        { name: 'Sales Resume Bold', filePath: SALES_Resume, imageUrl: sales_bold },
     ];
     return (
         <Container maxWidth="md" sx={{
@@ -1237,7 +1333,7 @@ function BuildCvPage({ user, theme }) {
                         ))}
                     </Stepper>
                 )}
-                {isFreeUser && (
+                {/*isFreeUser && (
                     <LockedOverlay>
                         <LockIcon sx={{ fontSize: 60, mb: 2 }} />
                         <Typography variant="h5" gutterBottom>
@@ -1254,7 +1350,7 @@ function BuildCvPage({ user, theme }) {
                             Upgrade to Pro
                         </StyledButton>
                     </LockedOverlay>
-                )}
+                )*/}
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={activeStep}
@@ -1270,15 +1366,35 @@ function BuildCvPage({ user, theme }) {
                                     <TemplateSlider templates={templates} onSelectTemplate={(template) => setSelectedTemplate(template)} cvData={cvData} />
                                 </div>
                                 <Box sx={{ mt: 4, display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'center', gap: 2 }}>
-                                        {/*
+                                    {/*
                                     <StyledButton variant="contained" onClick={generatePdfFromDocx(cvData,selectedTemplate)} startIcon={<DownloadIcon />} fullWidth={isMobile} disabled={isFreeUser}>
                                         Download PDF
                                     </StyledButton>
                                         */}
-                                    <StyledButton variant="contained" onClick={handleGenerate}
-                                        disabled={!selectedTemplate && isFreeUser} startIcon={<DownloadIcon />} fullWidth={isMobile}>
-                                        Download DOCX
-                                    </StyledButton>
+
+                                    {isFreeUser ? (
+                                        <Link href={'/upgrade'} underline="none">
+                                            <Button
+                                                variant="outlined"
+                                                color="primary"
+                                                startIcon={<LockIcon />}
+                                                fullWidth={isMobile}
+                                            >
+                                                Upgrade To Pro
+                                            </Button>
+                                        </Link>
+                                    ) : (
+                                        <StyledButton
+                                            variant="contained"
+                                            onClick={handleGenerate}
+                                            hidden={isFreeUser}
+                                            disabled={isFreeUser}
+                                            startIcon={<DownloadIcon />}
+                                            fullWidth={isMobile}
+                                        >
+                                            Download DOCX
+                                        </StyledButton>
+                                    )}
                                 </Box>
                             </Box>
                         ) : (

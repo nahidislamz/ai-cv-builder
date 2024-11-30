@@ -10,6 +10,7 @@ import {
   DialogActions,
   DialogContent,
   DialogContentText,
+  DialogTitle,
   CircularProgress,
   useTheme,
   List,
@@ -20,7 +21,6 @@ import {
 import { styled } from '@mui/material/styles';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { motion } from 'framer-motion';
-import { WarningAmber } from '@mui/icons-material';
 import { StyledButton } from './utils/shareComponent';
 const StyledCard = styled(Card)(({ theme }) => ({
   height: '100%',
@@ -170,6 +170,7 @@ const PricingCards = ({plan, email, userid, currentPlan}) => {
       </Box>
 
       <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="xs" fullWidth>
+      <DialogTitle>Confirm Subscription Switch</DialogTitle>
         <DialogContent>
           <Box sx={{ textAlign: 'center', py: 3 }}>
             {dialogLoading ? (
@@ -188,8 +189,7 @@ const PricingCards = ({plan, email, userid, currentPlan}) => {
               </>
             ) : (
               <>
-                <WarningAmber sx={{ fontSize: 60, mb: 1,color:'red' }} />
-                <DialogContentText sx={{ mt: 2, fontSize: '1.1rem', color: 'text.secondary' }}>
+                <DialogContentText sx={{fontSize: '1.1rem', color: 'text.secondary' }}>
                   Are you sure you want to switch your subscription? This action cannot be undone.
                 </DialogContentText>
               </>
@@ -198,33 +198,32 @@ const PricingCards = ({plan, email, userid, currentPlan}) => {
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'center', pb: 3 }}>
           {message ? (
-            <Button
+            <StyledButton
               onClick={() => { handleCloseDialog(); window.location.reload(); }}
               color="primary"
               variant="contained"
               sx={{ minWidth: 100 }}
             >
               Okay
-            </Button>
+            </StyledButton>
           ) : (
             <>
               <Button
                 onClick={handleCloseDialog}
                 color="primary"
-                variant="outlined"
                 sx={{ minWidth: 100 }}
               >
                 Cancel
               </Button>
-              <Button
+              <StyledButton
                 onClick={handleSubscribe}
                 color="secondary"
                 variant="contained"
                 sx={{ minWidth: 100, ml: 2 }}
                 disabled={loading}
               >
-                {loading ? 'Processing...' : 'Confirm'}
-              </Button>
+                {loading ? 'Processing...' : 'Confirm Switch'}
+              </StyledButton>
             </>
           )}
         </DialogActions>
